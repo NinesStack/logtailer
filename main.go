@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/nxadm/tail"
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
@@ -18,8 +16,7 @@ type Config struct {
 }
 
 type PodTracker struct {
-	Pods     map[string]*Pod
-	LogTails map[string][]*tail.Tail
+	LogTails map[string]*Tailer
 
 	disco  Discoverer
 	looper director.Looper
@@ -27,8 +24,7 @@ type PodTracker struct {
 
 func NewPodTracker(looper director.Looper, disco Discoverer) *PodTracker {
 	return &PodTracker{
-		Pods:     make(map[string]*Pod, 5),
-		LogTails: make(map[string][]*tail.Tail, 5),
+		LogTails: make(map[string]*Tailer, 5),
 		looper:   looper,
 		disco:    disco,
 	}
@@ -42,11 +38,11 @@ func (t *PodTracker) Run() {
 			return err
 		}
 
-		newPods := make(map[string]*Pod, len(t.Pods))
+		newTails := make(map[string]*Tailer, len(t.LogTails))
 
 		for _, pod := range discovered {
 			// Handle newly discovered pods
-			if _, ok := t.Pods[pod.Name]; !ok {
+			if _, ok := t.LogTails[pod.Name]; !ok {
 				log.Infof("new pod --> %s:%s  [%s]", pod.Namespace, pod.ServiceName, pod.Name)
 
 				logFiles, err := t.disco.LogFiles(pod.Name)
@@ -55,46 +51,40 @@ func (t *PodTracker) Run() {
 					continue
 				}
 
-				newPods[pod.Name] = pod
-				err = t.tailLogs(pod.Name, logFiles)
+				tailer := NewTailer(pod)
+				err = tailer.TailLogs(logFiles)
 				if err != nil {
 					log.Warnf("Failed to tail logs for pod %s: %s", pod.Name, err)
 					continue
 				}
+
+				newTails[pod.Name] = tailer
+
+				// Will exit when the looper is stopped, when Stop() is called on the Tailer
+				go tailer.Run()
+
 				continue
 			}
 
 			// Copy it over because we still see this pod
-			newPods[pod.Name] = t.Pods[pod.Name]
+			newTails[pod.Name] = t.LogTails[pod.Name]
 
 			// Remove from the old list
-			delete(t.Pods, pod.Name)
+			delete(t.LogTails, pod.Name)
 		}
 
 		// These Pods were no longer present
-		for podName, _ := range t.Pods {
-			println("drop pod: " + podName)
-			// do some pod dropping
+		for podName, tailer := range t.LogTails {
+			log.Infof("drop pod: %s", podName)
+
+			// Do some pod dropping
+			tailer.Stop()
 		}
 
-		t.Pods = newPods
+		t.LogTails = newTails
 
 		return nil
 	})
-}
-
-func (t *PodTracker) tailLogs(podName string, logFiles []string) error {
-	for _, filename := range logFiles {
-		tailed, err := tail.TailFile(filename, tail.Config{ReOpen: true, Follow: true})
-		if err != nil {
-			return fmt.Errorf("failed to tail log for %s: %w", podName, err)
-		}
-
-		log.Infof("  Adding tail on %s for pod %s", filename, podName)
-		t.LogTails[podName] = append(t.LogTails[podName], tailed)
-	}
-
-	return nil
 }
 
 func main() {
