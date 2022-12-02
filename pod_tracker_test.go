@@ -13,6 +13,7 @@ type mockDisco struct {
 	LogFilesShouldError bool
 
 	Pods []*Pod
+	Logs []string
 }
 
 func newMockDisco() *mockDisco {
@@ -35,7 +36,7 @@ func (d *mockDisco) LogFiles(pod string) ([]string, error) {
 	if d.LogFilesShouldError {
 		return nil, errors.New("intentional test error")
 	}
-	return nil, nil
+	return d.Logs, nil
 }
 
 func Test_NewPodTracker(t *testing.T) {
@@ -56,6 +57,89 @@ func Test_Run(t *testing.T) {
 		disco := newMockDisco()
 
 		tracker := NewPodTracker(looper, disco)
+
+		Convey("tails the logs for a newly discovered pod", func() {
+			So(len(tracker.LogTails), ShouldEqual, 0)
+
+			capture := LogCapture(func() {
+				disco.Pods = []*Pod{
+					&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
+				}
+				disco.Logs = []string{
+					"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+				}
+
+				go tracker.Run()
+				err := looper.Wait()
+				So(err, ShouldBeNil)
+			})
+
+			So(capture, ShouldContainSubstring, "Adding tail on fixtures/default_chopper-f5b66c6bf")
+			So(capture, ShouldNotContainSubstring, "Waiting for") // This happens if the file isn't found
+			So(len(tracker.LogTails), ShouldEqual, 1)
+		})
+
+		Convey("continues to track a pod that was already seen", func() {
+			_ = LogCapture(func() {
+				disco.Pods = []*Pod{
+					&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
+				}
+				disco.Logs = []string{
+					"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+				}
+
+				go tracker.Run()
+				err := looper.Wait()
+				So(err, ShouldBeNil)
+			})
+			So(len(tracker.LogTails), ShouldEqual, 1)
+			_, ok := tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"]
+			So(ok, ShouldBeTrue)
+
+			capture := LogCapture(func() {
+				go tracker.Run()
+				err := looper.Wait()
+				So(err, ShouldBeNil)
+			})
+
+			So(capture, ShouldNotContainSubstring, "Adding tail on fixtures/default_chopper-f5b66c6bf")
+			So(len(tracker.LogTails), ShouldEqual, 1)
+
+			_, ok = tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"]
+			So(ok, ShouldBeTrue)
+		})
+
+		Convey("drops a pod that is no longer present", func() {
+			_ = LogCapture(func() {
+				disco.Pods = []*Pod{
+					&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
+				}
+				disco.Logs = []string{
+					"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+				}
+
+				go tracker.Run()
+				err := looper.Wait()
+				So(err, ShouldBeNil)
+			})
+			So(len(tracker.LogTails), ShouldEqual, 1)
+			_, ok := tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"]
+			So(ok, ShouldBeTrue)
+
+			disco.Pods = []*Pod{}
+
+			capture := LogCapture(func() {
+				go tracker.Run()
+				err := looper.Wait()
+				So(err, ShouldBeNil)
+			})
+
+			So(capture, ShouldContainSubstring, "drop pod: default_chopper")
+			So(len(tracker.LogTails), ShouldEqual, 0)
+
+			_, ok = tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"]
+			So(ok, ShouldBeFalse)
+		})
 
 		Convey("handles errors from Discover()", func() {
 			capture := LogCapture(func() {
