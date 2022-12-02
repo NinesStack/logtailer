@@ -21,23 +21,31 @@ func Test_Discover(t *testing.T) {
 		disco := NewDirListDiscoverer(fixturesDir, "dev")
 
 		Convey("finds all the pods", func() {
-			discovered, err := disco.Discover()
-			So(err, ShouldBeNil)
-			So(len(discovered), ShouldEqual, 2)
+			capture := LogCapture(func() {
+				discovered, err := disco.Discover()
+				So(err, ShouldBeNil)
+				So(len(discovered), ShouldEqual, 6)
+			})
+
+			So(capture, ShouldNotContainSubstring, "Error")
 		})
 
 		Convey("fills out the details properly for each", func() {
-			discovered, err := disco.Discover()
-			So(err, ShouldBeNil)
-			So(discovered[0].Name, ShouldEqual, "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499")
-			So(discovered[0].Namespace, ShouldEqual, "default")
-			So(discovered[0].ServiceName, ShouldEqual, "chopper")
-			So(discovered[0].Environment, ShouldEqual, "dev")
+			capture := LogCapture(func() {
+				discovered, err := disco.Discover()
+				So(err, ShouldBeNil)
+				So(discovered[1].Name, ShouldEqual, "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499")
+				So(discovered[1].Namespace, ShouldEqual, "default")
+				So(discovered[1].ServiceName, ShouldEqual, "chopper")
+				So(discovered[1].Environment, ShouldEqual, "dev")
 
-			So(discovered[1].Name, ShouldEqual, "default_pipeline-comparator-749f97cb4b-w8w4r_e5f10cd8-fb8a-4ade-b402-9b33f34f017f")
-			So(discovered[1].Namespace, ShouldEqual, "default")
-			So(discovered[1].ServiceName, ShouldEqual, "pipeline-comparator")
-			So(discovered[1].Environment, ShouldEqual, "dev")
+				So(discovered[2].Name, ShouldEqual, "default_pipeline-comparator-749f97cb4b-w8w4r_e5f10cd8-fb8a-4ade-b402-9b33f34f017f")
+				So(discovered[2].Namespace, ShouldEqual, "default")
+				So(discovered[2].ServiceName, ShouldEqual, "pipeline-comparator")
+				So(discovered[2].Environment, ShouldEqual, "dev")
+		})
+
+			So(capture, ShouldNotContainSubstring, "Error")
 		})
 
 		Convey("errors when it can't open the dir", func() {

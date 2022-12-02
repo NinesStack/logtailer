@@ -3,7 +3,9 @@ module github.com/Shimmur/logtailer
 go 1.18
 
 require (
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/relistan/go-director v0.0.0-20200406104025-dbbf5d95248d
+	github.com/relistan/rubberneck v1.3.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/smartystreets/goconvey v1.6.4
 )

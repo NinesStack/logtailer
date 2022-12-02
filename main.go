@@ -5,9 +5,16 @@ import (
 
 	"time"
 
+	"github.com/kelseyhightower/envconfig"
 	director "github.com/relistan/go-director"
+	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
 )
+
+type Config struct {
+	Environment string `envconfig:"ENVIRONMENT" default:"dev"`
+	BasePath    string `envconfig:"BASE_PATH" default:"/var/log/pods"`
+}
 
 type PodTracker struct {
 	Pods map[string]*Pod
@@ -36,7 +43,7 @@ func (t *PodTracker) Run() {
 
 		for _, pod := range discovered {
 			if _, ok := t.Pods[pod.Name]; !ok {
-				log.Infof("new pod --> %s:%s", pod.Namespace, pod.ServiceName)
+				log.Infof("new pod --> %s:%s  [%s]", pod.Namespace, pod.ServiceName, pod.Name)
 
 				newPods[pod.Name] = pod
 				continue
@@ -62,7 +69,14 @@ func (t *PodTracker) Run() {
 }
 
 func main() {
-	disco := NewDirListDiscoverer("Pods", "dev")
+	var config Config
+	err := envconfig.Process("log", &config)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	rubberneck.Print(config)
+
+	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
 	podDiscoveryLooper := director.NewImmediateTimedLooper(director.FOREVER, 3*time.Second, make(chan error))
 	tracker := NewPodTracker(podDiscoveryLooper, disco)
 	go tracker.Run()

@@ -7,9 +7,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+)
+
+var (
+    // For: projectcontour_envoy-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
+	//  or  default_chopper-f5b66c6bf-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
+	// K8s seems to do all kinds of craziness here. Not clear to me why.
+	podNameRegexp = regexp.MustCompile("(-[a-f0-9]+)?-[a-z0-9]{5}_([a-f0-9-]+){5}$")
 )
 
 type Pod struct {
@@ -93,32 +101,21 @@ func (d *DirListDiscoverer) LogFiles(podName string) ([]string, error) {
 
 // namesFor parses apart the pod filename and gets the pod name and namespace
 func (d *DirListDiscoverer) namesFor(podName string) (string, string, error) {
-	fields := strings.Split(podName, "-")
-	if len(fields) < 7 {
-		return "", "", fmt.Errorf("failed to parse podName: %s", podName)
+	if !podNameRegexp.MatchString(podName) {
+		return "", "", fmt.Errorf("failed to parse podName (doesn't match regexp): %s", podName)
 	}
+	podName = podNameRegexp.ReplaceAllString(podName, "")
 
-	nameFields := strings.Split(fields[0], "_")
+	// Underscores are not legal in K8s pod names
+	nameFields := strings.Split(podName, "_")
 	if len(nameFields) < 2 {
-		return "", "", fmt.Errorf("failed to parse podName: %s", podName)
+		return "", "", fmt.Errorf("failed to parse podName (splitting namespace): %s", podName)
 	}
 
 	namespace := nameFields[0]
+	serviceName := nameFields[1]
 
-	// No dashes in the ServiceName
-	if len(fields) == 7 {
-		return namespace, nameFields[1], nil
-	}
-
-	// Had dashes in the ServiceName
-	serviceNameParts := []string{nameFields[1]}
-	for i := 1; i <= len(fields)-7; i++ {
-		serviceNameParts = append(serviceNameParts, fields[i])
-	}
-
-	// Underscores are not legal in K8s pod names
-
-	return namespace, strings.Join(serviceNameParts, "-"), nil
+	return namespace, serviceName, nil
 }
 
 func dirList(dir string) ([]string, error) {
