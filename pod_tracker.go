@@ -5,6 +5,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// A PodTracker keeps a cache of all the Tailers and orchestrates them based on
+// what it finds out from discovery, on time loop controlled by the looper.
 type PodTracker struct {
 	LogTails map[string]*Tailer
 
@@ -12,6 +14,8 @@ type PodTracker struct {
 	looper director.Looper
 }
 
+// NewPodTracker configures a PodTracker for use, assigning the given Looper
+// and Discoverer, and making sure the caching map is made.
 func NewPodTracker(looper director.Looper, disco Discoverer) *PodTracker {
 	return &PodTracker{
 		LogTails: make(map[string]*Tailer, 5),
@@ -20,6 +24,8 @@ func NewPodTracker(looper director.Looper, disco Discoverer) *PodTracker {
 	}
 }
 
+// Run invokes the looper to poll discovery and then add or remove Pods from
+// tracking. The work of the actual file tailing is done by the Tailers.
 func (t *PodTracker) Run() {
 	t.looper.Loop(func() error {
 		discovered, err := t.disco.Discover()

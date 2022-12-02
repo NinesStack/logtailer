@@ -1,55 +1,15 @@
 package main
 
 import (
-	"errors"
 	"testing"
 
 	director "github.com/relistan/go-director"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-type mockDisco struct {
-	DiscoverShouldError bool
-	LogFilesShouldError bool
-
-	Pods []*Pod
-	Logs []string
-}
-
-func newMockDisco() *mockDisco {
-	return &mockDisco{}
-}
-
-func (d *mockDisco) Discover() ([]*Pod, error) {
-	if d.DiscoverShouldError {
-		return nil, errors.New("intentional test error")
-	}
-
-	if d.Pods != nil {
-		return d.Pods, nil
-	}
-
-	return []*Pod{}, nil
-}
-
-func (d *mockDisco) LogFiles(pod string) ([]string, error) {
-	if d.LogFilesShouldError {
-		return nil, errors.New("intentional test error")
-	}
-	return d.Logs, nil
-}
-
-func Test_NewPodTracker(t *testing.T) {
-	Convey("NewPodTracker()", t, func() {
-		looper := director.NewFreeLooper(director.ONCE, make(chan error))
-		disco := newMockDisco()
-
-		tracker := NewPodTracker(looper, disco)
-
-		So(tracker.looper, ShouldEqual, looper)
-		So(tracker.disco, ShouldEqual, disco)
-	})
-}
+// NOTE: Because of the extremely async behavior of this service, the following
+// tests rely a lot on the output of logs to make sure that state we can't see
+// what handled properly.
 
 func Test_Run(t *testing.T) {
 	Convey("Run()", t, func() {
