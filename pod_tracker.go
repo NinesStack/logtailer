@@ -55,7 +55,7 @@ func (t *PodTracker) Run() {
 					continue
 				}
 
-				tailer := NewTailer(pod, t.cache)
+				tailer := t.newTailerFunc(pod, t.cache)
 				err = tailer.TailLogs(logFiles)
 				if err != nil {
 					log.Warnf("Failed to tail logs for pod %s: %s", pod.Name, err)
