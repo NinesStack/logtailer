@@ -23,19 +23,22 @@ type Tailer struct {
 	Pod      *Pod
 	LogChan  chan *tail.Line
 
+	logger LogOutput
+
 	looper     director.Looper
 	cache      *cache.Cache
 	localCache map[string]*tail.SeekInfo
 }
 
 // NewTailer returns a properly configured Tailer for a Pod
-func NewTailer(pod *Pod, cache *cache.Cache) *Tailer {
+func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 	return &Tailer{
 		Pod:        pod,
 		LogChan:    make(chan *tail.Line),
 		looper:     director.NewFreeLooper(director.FOREVER, make(chan error)),
 		cache:      cache,
 		localCache: make(map[string]*tail.SeekInfo, 5),
+		logger:     logger,
 	}
 }
 
@@ -93,8 +96,8 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 func (t *Tailer) Run() {
 	go t.looper.Loop(func() error {
 		for line := range t.LogChan {
-			// TODO rate limit and send UDP
-			println(line.Text)
+			// TODO rate limit
+			t.logger.Log(line.Text)
 		}
 		return nil
 	})

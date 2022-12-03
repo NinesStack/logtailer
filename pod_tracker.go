@@ -11,23 +11,30 @@ import (
 type PodTracker struct {
 	LogTails map[string]LogTailer
 
-	disco  Discoverer
-	looper director.Looper
-	cache  *cache.Cache
+	disco         Discoverer
+	looper        director.Looper
+	cache         *cache.Cache
 	newTailerFunc func(pod *Pod, cache *cache.Cache) LogTailer
 }
 
 // NewPodTracker configures a PodTracker for use, assigning the given Looper
 // and Discoverer, and making sure the caching map is made.
-func NewPodTracker(looper director.Looper, disco Discoverer, c *cache.Cache) *PodTracker {
+func NewPodTracker(looper director.Looper, disco Discoverer, c *cache.Cache, hostname string, address string) *PodTracker {
 	return &PodTracker{
 		LogTails: make(map[string]LogTailer, 5),
 		looper:   looper,
 		disco:    disco,
 		cache:    c,
 		newTailerFunc: func(pod *Pod, c *cache.Cache) LogTailer {
+			logger := NewUDPSyslogger(map[string]string{
+				"ServiceName": pod.ServiceName,
+				"Environment": pod.Environment,
+				"PodName":     pod.Name,
+				"Hostname":    hostname,
+			}, address)
+
 			// Wrap the return value from NewTailer as an interface
-			return NewTailer(pod, c)
+			return NewTailer(pod, c, logger)
 		},
 	}
 }

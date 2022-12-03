@@ -19,6 +19,7 @@ type Config struct {
 	MaxTrackedLogs     int           `envconfig:"MAX_TRACKED_LOGS" default:"100"`
 	CacheFilePath      string        `envconfig:"CACHE_FILE_PATH" default:"/var/log/logtailer.json"`
 	CacheFlushInterval time.Duration `envconfig:"CACHE_FLUSH_INTERVAL" default:"3s"`
+	SyslogAddress      string        `envconfig:"SYSLOG_ADDRESS" default:"127.0.0.1:514"`
 }
 
 func configureCache(config *Config) *cache.Cache {
@@ -51,8 +52,10 @@ func main() {
 	cacheLooper := director.NewTimedLooper(
 		director.FOREVER, config.CacheFlushInterval, make(chan error))
 
+	hostname, _ := os.Hostname()
+
 	// Set up and run the tracker
-	tracker := NewPodTracker(podDiscoveryLooper, disco, cache)
+	tracker := NewPodTracker(podDiscoveryLooper, disco, cache, hostname, config.SyslogAddress)
 	go tracker.Run()
 
 	// Persist the cache on a timer
