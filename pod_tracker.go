@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Shimmur/logtailer/cache"
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
 )
@@ -12,15 +13,17 @@ type PodTracker struct {
 
 	disco  Discoverer
 	looper director.Looper
+	cache  *cache.Cache
 }
 
 // NewPodTracker configures a PodTracker for use, assigning the given Looper
 // and Discoverer, and making sure the caching map is made.
-func NewPodTracker(looper director.Looper, disco Discoverer) *PodTracker {
+func NewPodTracker(looper director.Looper, disco Discoverer, cache *cache.Cache) *PodTracker {
 	return &PodTracker{
 		LogTails: make(map[string]*Tailer, 5),
 		looper:   looper,
 		disco:    disco,
+		cache:    cache,
 	}
 }
 
@@ -47,7 +50,7 @@ func (t *PodTracker) Run() {
 					continue
 				}
 
-				tailer := NewTailer(pod)
+				tailer := NewTailer(pod, t.cache)
 				err = tailer.TailLogs(logFiles)
 				if err != nil {
 					log.Warnf("Failed to tail logs for pod %s: %s", pod.Name, err)

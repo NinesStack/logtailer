@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/Shimmur/logtailer/cache"
 	"github.com/nxadm/tail"
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
@@ -14,14 +15,16 @@ type Tailer struct {
 	LogChan  chan *tail.Line
 
 	looper director.Looper
+	cache  *cache.Cache
 }
 
 // NewTailer returns a properly configured Tailer for a Pod
-func NewTailer(pod *Pod) *Tailer {
+func NewTailer(pod *Pod, cache *cache.Cache) *Tailer {
 	return &Tailer{
 		Pod:     pod,
 		LogChan: make(chan *tail.Line),
 		looper:  director.NewFreeLooper(director.FOREVER, make(chan error)),
+		cache:   cache,
 	}
 }
 
