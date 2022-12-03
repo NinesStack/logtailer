@@ -9,22 +9,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// A Tailer watches all the logs for a Pod
 type Tailer struct {
 	LogTails []*tail.Tail
 	Pod      *Pod
 	LogChan  chan *tail.Line
 
-	looper director.Looper
-	cache  *cache.Cache
+	looper     director.Looper
+	cache      *cache.Cache
+	localCache map[string]*tail.SeekInfo
 }
 
 // NewTailer returns a properly configured Tailer for a Pod
 func NewTailer(pod *Pod, cache *cache.Cache) *Tailer {
 	return &Tailer{
-		Pod:     pod,
-		LogChan: make(chan *tail.Line),
-		looper:  director.NewFreeLooper(director.FOREVER, make(chan error)),
-		cache:   cache,
+		Pod:        pod,
+		LogChan:    make(chan *tail.Line),
+		looper:     director.NewFreeLooper(director.FOREVER, make(chan error)),
+		cache:      cache,
+		localCache: make(map[string]*tail.SeekInfo, 5),
 	}
 }
 
@@ -50,6 +53,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 		// Copy into the main channel. These till exit when the tail is stopped.
 		go func() {
 			for l := range tailed.Lines {
+				t.localCache[filename] = &l.SeekInfo // Cache locally
 				t.LogChan <- l
 			}
 		}()
@@ -67,13 +71,19 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 	return nil
 }
 
+// Run processes all the logs currently pending, and then writes the current
+// seek info for each log to the main cache for persistence.
 func (t *Tailer) Run() {
 	t.looper.Loop(func() error {
 		for line := range t.LogChan {
 			// TODO rate limit and send UDP
 			println(line.Text)
-			// TODO on a timed basis we could track seek offset to a file so restarts
-			// don't flush the whole log file
+		}
+
+		// Write our local cache to the main cache, from which it will be persisted.
+		// Prevents the lock on the main cache from bottlenecking all log flushes.
+		for filename, seekInfo := range t.localCache {
+			t.cache.Add(filename, seekInfo)
 		}
 		return nil
 	})
