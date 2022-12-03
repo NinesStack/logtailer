@@ -54,3 +54,43 @@ func Test_EndToEnd(t *testing.T) {
 		})
 	})
 }
+
+func Test_Load(t *testing.T) {
+	Convey("Load()", t, func() {
+		Convey("errors when the file can't be read", func() {
+			cacheFileName := "/does/not/exist"
+			cache := NewCache(1, cacheFileName)
+
+			err := cache.Load()
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to load cache from /does/not/exist")
+		})
+
+		Convey("errors when the file can't be unmarshaled", func() {
+			cacheFile, err := os.CreateTemp("", "seekInfoCache*")
+			So(err, ShouldBeNil)
+
+			err = os.WriteFile(cacheFile.Name(), []byte("not json"), 0644)
+			So(err, ShouldBeNil)
+
+			cache := NewCache(1, cacheFile.Name())
+
+			err = cache.Load()
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to unmarshal cache")
+		})
+	})
+}
+
+func Test_Persist(t *testing.T) {
+	Convey("Persist()", t, func() {
+		Convey("errors when the file can't be written", func() {
+			cacheFileName := "/does/not/exist"
+			cache := NewCache(1, cacheFileName)
+
+			err := cache.Persist()
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to marshal cache")
+		})
+	})
+}

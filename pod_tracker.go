@@ -9,21 +9,26 @@ import (
 // A PodTracker keeps a cache of all the Tailers and orchestrates them based on
 // what it finds out from discovery, on time loop controlled by the looper.
 type PodTracker struct {
-	LogTails map[string]*Tailer
+	LogTails map[string]LogTailer
 
 	disco  Discoverer
 	looper director.Looper
 	cache  *cache.Cache
+	newTailerFunc func(pod *Pod, cache *cache.Cache) LogTailer
 }
 
 // NewPodTracker configures a PodTracker for use, assigning the given Looper
 // and Discoverer, and making sure the caching map is made.
-func NewPodTracker(looper director.Looper, disco Discoverer, cache *cache.Cache) *PodTracker {
+func NewPodTracker(looper director.Looper, disco Discoverer, c *cache.Cache) *PodTracker {
 	return &PodTracker{
-		LogTails: make(map[string]*Tailer, 5),
+		LogTails: make(map[string]LogTailer, 5),
 		looper:   looper,
 		disco:    disco,
-		cache:    cache,
+		cache:    c,
+		newTailerFunc: func(pod *Pod, c *cache.Cache) LogTailer {
+			// Wrap the return value from NewTailer as an interface
+			return NewTailer(pod, c)
+		},
 	}
 }
 
@@ -37,7 +42,7 @@ func (t *PodTracker) Run() {
 			return err
 		}
 
-		newTails := make(map[string]*Tailer, len(t.LogTails))
+		newTails := make(map[string]LogTailer, len(t.LogTails))
 
 		for _, pod := range discovered {
 			// Handle newly discovered pods
@@ -84,4 +89,10 @@ func (t *PodTracker) Run() {
 
 		return nil
 	})
+}
+
+func (t *PodTracker) FlushOffsets() {
+	for _, tailer := range t.LogTails {
+		tailer.FlushOffsets()
+	}
 }

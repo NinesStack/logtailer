@@ -60,7 +60,7 @@ func (c *Cache) Load() error {
 
 	err = json.Unmarshal(data, &c.store)
 	if err != nil {
-		return fmt.Errorf("failed to load cache from %s: %s", c.storePath, err)
+		return fmt.Errorf("failed to unmarshal cache from %s: %s", c.storePath, err)
 	}
 
 	return nil
@@ -73,12 +73,12 @@ func (c *Cache) Persist() error {
 
 	data, err := json.Marshal(c.store)
 	if err != nil {
-		return fmt.Errorf("failed to persist to %s: %s", c.storePath, err)
+		return fmt.Errorf("failed to persist cache to %s: %s", c.storePath, err)
 	}
 
 	err = os.WriteFile(c.storePath, data, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to persist to %s: %s", c.storePath, err)
+		return fmt.Errorf("failed to marshal cache to %s: %s", c.storePath, err)
 	}
 
 	return nil

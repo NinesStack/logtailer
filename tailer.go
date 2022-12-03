@@ -9,6 +9,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// LogTailer defines the interface expected by a PodTracker
+type LogTailer interface {
+	TailLogs(logFiles []string) error
+	Run()
+	FlushOffsets()
+	Stop()
+}
+
 // A Tailer watches all the logs for a Pod
 type Tailer struct {
 	LogTails []*tail.Tail
@@ -42,7 +50,16 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 	)
 
 	for _, filename := range logFiles {
-		tailed, err = tail.TailFile(filename, tail.Config{ReOpen: true, Follow: true, Logger: log.StandardLogger()})
+		var seekInfo tail.SeekInfo
+
+		if sought := t.cache.Get(filename); sought != nil {
+			log.Infof("  Found existing offset for %s, skipping to position", filename)
+			seekInfo = *sought
+		}
+
+		tailed, err = tail.TailFile(filename, tail.Config{
+			ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: &seekInfo,
+		})
 		if err != nil {
 			failed = true
 		}
@@ -74,19 +91,23 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 // Run processes all the logs currently pending, and then writes the current
 // seek info for each log to the main cache for persistence.
 func (t *Tailer) Run() {
-	t.looper.Loop(func() error {
+	go t.looper.Loop(func() error {
 		for line := range t.LogChan {
 			// TODO rate limit and send UDP
 			println(line.Text)
 		}
-
-		// Write our local cache to the main cache, from which it will be persisted.
-		// Prevents the lock on the main cache from bottlenecking all log flushes.
-		for filename, seekInfo := range t.localCache {
-			t.cache.Add(filename, seekInfo)
-		}
 		return nil
 	})
+}
+
+// FlushOffests writes all the offsets from the localCache into the main cache.
+// This is triggered from the PodTracker.
+func (t *Tailer) FlushOffsets() {
+	// Write our local cache to the main cache, from which it will be persisted.
+	// Prevents the lock on the main cache from bottlenecking all log flushes.
+	for filename, seekInfo := range t.localCache {
+		t.cache.Add(filename, seekInfo)
+	}
 }
 
 func (t *Tailer) Stop() {
@@ -95,6 +116,14 @@ func (t *Tailer) Stop() {
 		if err != nil {
 			log.Errorf("Failed to stop tail for pod %s: %s", t.Pod.Name, err)
 		}
+
+		// Remove any inotify watches
+		entry.Cleanup()
+	}
+
+	// Remove our offsets from the persisted cache
+	for filename, _ := range t.localCache {
+		t.cache.Del(filename)
 	}
 	t.looper.Quit()
 }
