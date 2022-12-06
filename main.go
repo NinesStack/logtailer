@@ -6,10 +6,16 @@ import (
 	"time"
 
 	"github.com/Shimmur/logtailer/cache"
+	"github.com/Shimmur/logtailer/reporter"
 	"github.com/kelseyhightower/envconfig"
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// NewRelicBaseURL is the base URL where we'll send events
+	NewRelicBaseURL = "https://insights-collector.newrelic.com/v1/accounts/"
 )
 
 type Config struct {
@@ -20,6 +26,11 @@ type Config struct {
 	CacheFilePath      string        `envconfig:"CACHE_FILE_PATH" default:"/var/log/logtailer.json"`
 	CacheFlushInterval time.Duration `envconfig:"CACHE_FLUSH_INTERVAL" default:"3s"`
 	SyslogAddress      string        `envconfig:"SYSLOG_ADDRESS" default:"127.0.0.1:514"`
+	NewRelicAccount    string        `envconfig:"NEW_RELIC_ACCOUNT"`
+	NewRelicKey        string        `envconfig:"NEW_RELIC_LICENSE_KEY"`
+	TokenLimit         int           `envconfig:"TOKEN_LIMIT" default:"300"`
+	LimitInterval      time.Duration `envconfig:"LIMIT_INTERVAL" default:"1m"`
+	Debug              bool          `envconfig:"DEBUG" default:"false"`
 }
 
 func configureCache(config *Config) *cache.Cache {
@@ -38,18 +49,24 @@ func configureCache(config *Config) *cache.Cache {
 
 // NewTailerWithUDPSyslog is passed to PodTracker to generate new Tailers with
 // UDP Syslog output. It uses a closure to pass in cache, address, and hostname.
-func NewTailerWithUDPSyslog(c *cache.Cache, hostname, address string) NewTailerFunc {
+func NewTailerWithUDPSyslog(c *cache.Cache, hostname string, config *Config) NewTailerFunc {
+	// Make a reporter for injection
+	rptr := reporter.NewLimitExceededReporter(NewRelicBaseURL, config.NewRelicKey, config.NewRelicAccount)
+
 	return func(pod *Pod) LogTailer {
 		// Configure the fields we log to Syslog
-		logger := NewUDPSyslogger(map[string]string{
+		udpLogger := NewUDPSyslogger(map[string]string{
 			"ServiceName": pod.ServiceName,
 			"Environment": pod.Environment,
 			"PodName":     pod.Name,
 			"Hostname":    hostname,
-		}, address)
+		}, config.SyslogAddress)
+
+		// Inject the UDPSyslogger into the RateLimitingLogger
+		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval, "ServiceName", udpLogger)
 
 		// Wrap the return value from NewTailer as an interface
-		return NewTailer(pod, c, logger)
+		return NewTailer(pod, c, limitingLogger)
 	}
 }
 
@@ -60,6 +77,11 @@ func main() {
 		log.Fatal(err.Error())
 	}
 	rubberneck.Print(config)
+
+	// Maybe enable debug logging for this service
+	if config.Debug {
+		log.SetLevel(log.DebugLevel)
+	}
 
 	// Some deps for injection
 	cache := configureCache(&config)
@@ -72,7 +94,7 @@ func main() {
 	hostname, _ := os.Hostname()
 
 	// Set up and run the tracker
-	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, config.SyslogAddress)
+	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, &config)
 	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc)
 	go tracker.Run()
 

@@ -96,7 +96,6 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 func (t *Tailer) Run() {
 	go t.looper.Loop(func() error {
 		for line := range t.LogChan {
-			// TODO rate limit
 			t.logger.Log(line.Text)
 		}
 		return nil

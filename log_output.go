@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/Nitro/sidecar-executor/loghooks"
+	"github.com/Shimmur/logtailer/reporter"
+	limiter "github.com/sethvargo/go-limiter"
+	"github.com/sethvargo/go-limiter/memorystore"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -78,4 +83,62 @@ func (sysl *UDPSyslogger) Log(line string) {
 	}
 
 	sysl.syslogger.Info(line)
+}
+
+// A RateLimitingLogger is a LogOutput that wraps another LogOutput, adding rate limiting
+// capability
+type RateLimitingLogger struct {
+	limitStore    limiter.Store
+	limitReporter *reporter.LimitExceededReporter
+	output        LogOutput
+	limitKey      string
+}
+
+func NewRateLimitingLogger(
+	limitReporter *reporter.LimitExceededReporter, tokenLimit int,
+	reportInterval time.Duration, key string, output LogOutput) *RateLimitingLogger {
+
+	// Set up the rate limiter
+	store, err := memorystore.New(&memorystore.Config{
+		// Number of tokens allowed per interval.
+		Tokens: uint64(tokenLimit),
+
+		// Interval until tokens reset.
+		Interval: reportInterval,
+	})
+
+	if err != nil {
+		log.Errorf("Unable to create memory store: %s", err)
+	}
+
+	return &RateLimitingLogger{
+		limitStore:    store,
+		limitReporter: limitReporter,
+		output:        output,
+		limitKey:      key,
+	}
+}
+
+// isRateLimited compares the tracking key to the stored limit and returns
+// a boolen value for whether or not it is limited.
+func (logger *RateLimitingLogger) isRateLimited() bool {
+	// See if we're going to rate limit this
+	limit, remaining, reset, ok, err := logger.limitStore.Take(context.Background(), logger.limitKey)
+	log.Debugf("Checking rate limit: %d %d %d %t", limit, remaining, reset, ok)
+	if err != nil {
+		log.Warnf("Unable to fetch rate limit for %v", logger.limitKey)
+		return true // Rate limit it since we can't track
+	}
+
+	return !ok
+}
+
+// Log is a pass-through to the downstream LogOutput, but checks rate limiting status
+func (logger *RateLimitingLogger) Log(line string) {
+	if !logger.isRateLimited() {
+		logger.output.Log(line)
+		return
+	}
+
+	logger.limitReporter.Incr()
 }
