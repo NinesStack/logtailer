@@ -14,7 +14,7 @@ import (
 )
 
 var (
-    // For: projectcontour_envoy-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
+	// For: projectcontour_envoy-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
 	//  or  default_chopper-f5b66c6bf-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
 	// K8s seems to do all kinds of craziness here. Not clear to me why.
 	podNameRegexp = regexp.MustCompile("(-[a-f0-9]+)?-[a-z0-9]{5}_([a-f0-9-]+){5}$")
@@ -28,20 +28,28 @@ type Pod struct {
 	Logs        []string
 }
 
+// A Discoverer finds Pods
 type Discoverer interface {
 	Discover() ([]*Pod, error)
 	LogFiles(pod string) ([]string, error)
 }
 
+// A DiscoveryFilter only passes through Pods that we should allow
+type DiscoveryFilter interface {
+	ShouldTailLogs(pod *Pod) (bool, error)
+}
+
 type DirListDiscoverer struct {
 	Dir         string
 	Environment string
+	Filter      DiscoveryFilter
 }
 
-func NewDirListDiscoverer(path, environment string) *DirListDiscoverer {
+func NewDirListDiscoverer(path, environment string, filter DiscoveryFilter) *DirListDiscoverer {
 	return &DirListDiscoverer{
 		Dir:         path,
 		Environment: environment,
+		Filter:      filter,
 	}
 }
 
@@ -64,13 +72,24 @@ func (d *DirListDiscoverer) Discover() ([]*Pod, error) {
 			continue
 		}
 
-		pods = append(pods, &Pod{
+		pod := &Pod{
 			Name:        entry,
 			Namespace:   namespace,
 			ServiceName: serviceName,
 			Environment: d.Environment,
-		})
+		}
+
+		shouldTail, err := d.Filter.ShouldTailLogs(pod)
+		if err != nil {
+			log.Errorf("Failed to check filter for pod %s, disabling logging", pod.Name)
+			continue
+		}
+
+		if shouldTail {
+			pods = append(pods, pod)
+		}
 	}
+
 	return pods, nil
 }
 

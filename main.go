@@ -19,18 +19,28 @@ const (
 )
 
 type Config struct {
-	Environment        string        `envconfig:"ENVIRONMENT" default:"dev"`
-	BasePath           string        `envconfig:"BASE_PATH" default:"/var/log/pods"`
-	DiscoInterval      time.Duration `envconfig:"DISCO_INTERVAL" default:"3s"`
-	MaxTrackedLogs     int           `envconfig:"MAX_TRACKED_LOGS" default:"100"`
+	Environment    string        `envconfig:"ENVIRONMENT" default:"dev"`
+	BasePath       string        `envconfig:"BASE_PATH" default:"/var/log/pods"`
+	DiscoInterval  time.Duration `envconfig:"DISCO_INTERVAL" default:"5s"`
+	MaxTrackedLogs int           `envconfig:"MAX_TRACKED_LOGS" default:"100"`
+
 	CacheFilePath      string        `envconfig:"CACHE_FILE_PATH" default:"/var/log/logtailer.json"`
 	CacheFlushInterval time.Duration `envconfig:"CACHE_FLUSH_INTERVAL" default:"3s"`
-	SyslogAddress      string        `envconfig:"SYSLOG_ADDRESS" default:"127.0.0.1:514"`
-	NewRelicAccount    string        `envconfig:"NEW_RELIC_ACCOUNT"`
-	NewRelicKey        string        `envconfig:"NEW_RELIC_LICENSE_KEY"`
-	TokenLimit         int           `envconfig:"TOKEN_LIMIT" default:"300"`
-	LimitInterval      time.Duration `envconfig:"LIMIT_INTERVAL" default:"1m"`
-	Debug              bool          `envconfig:"DEBUG" default:"false"`
+
+	SyslogAddress string `envconfig:"SYSLOG_ADDRESS" default:"127.0.0.1:514"`
+
+	NewRelicAccount string `envconfig:"NEW_RELIC_ACCOUNT"`
+	NewRelicKey     string `envconfig:"NEW_RELIC_LICENSE_KEY"`
+
+	TokenLimit    int           `envconfig:"TOKEN_LIMIT" default:"300"`
+	LimitInterval time.Duration `envconfig:"LIMIT_INTERVAL" default:"1m"`
+
+	KubeHost      string        `envconfig:"KUBERNETES_SERVICE_HOST" default:"127.0.0.1"`
+	KubePort      int           `envconfig:"KUBERNETES_SERVICE_PORT" default:"8080"`
+	KubeTimeout   time.Duration `envconfig:"KUBERNETES_TIMEOUT" default:"3s"`
+	KubeCredsPath string        `envconfig:"KUBERNETES_CREDS_PATH" default:"/var/run/secrets/kubernetes.io/serviceaccount"`
+
+	Debug bool `envconfig:"DEBUG" default:"false"`
 }
 
 func configureCache(config *Config) *cache.Cache {
@@ -85,7 +95,8 @@ func main() {
 
 	// Some deps for injection
 	cache := configureCache(&config)
-	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
+	filter := NewPodFilter(config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath)
+	disco := NewDirListDiscoverer(config.BasePath, config.Environment, filter)
 	podDiscoveryLooper := director.NewImmediateTimedLooper(
 		director.FOREVER, config.DiscoInterval, make(chan error))
 	cacheLooper := director.NewTimedLooper(
