@@ -51,7 +51,7 @@ func Test_Run(t *testing.T) {
 					&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
 				}
 				disco.Logs = []string{
-					"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+					fixturesDir+"/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
 				}
 
 				go tracker.Run()
@@ -59,7 +59,7 @@ func Test_Run(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
-			So(capture, ShouldContainSubstring, "Adding tail on fixtures/default_chopper-f5b66c6bf")
+			So(capture, ShouldContainSubstring, "Adding tail on fixtures/pods/default_chopper-f5b66c6bf")
 			So(capture, ShouldNotContainSubstring, "Waiting for") // This happens if the file isn't found
 			So(len(tracker.LogTails), ShouldEqual, 1)
 		})
@@ -70,7 +70,7 @@ func Test_Run(t *testing.T) {
 					&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
 				}
 				disco.Logs = []string{
-					"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+					fixturesDir+"/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
 				}
 
 				go tracker.Run()
@@ -87,7 +87,7 @@ func Test_Run(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
-			So(capture, ShouldNotContainSubstring, "Adding tail on fixtures/default_chopper-f5b66c6bf")
+			So(capture, ShouldNotContainSubstring, "Adding tail on fixtures/pods/default_chopper-f5b66c6bf")
 			So(len(tracker.LogTails), ShouldEqual, 1)
 
 			_, ok = tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"]
@@ -100,7 +100,7 @@ func Test_Run(t *testing.T) {
 					&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
 				}
 				disco.Logs = []string{
-					"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+					fixturesDir+"/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
 				}
 
 				go tracker.Run()
@@ -181,7 +181,7 @@ func Test_FlushOffsets(t *testing.T) {
 				&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
 			}
 			disco.Logs = []string{
-				"fixtures/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
+				fixturesDir+"/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
 			}
 
 			mockTailer1 := &mockTailer{}

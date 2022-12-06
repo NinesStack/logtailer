@@ -21,14 +21,14 @@ type K8sPodsMetadata struct {
 	Items []struct {
 		Metadata struct {
 			Annotations struct {
-				CommunityComTailLogs string `json:"community.com.TailLogs"`
+				CommunityComTailLogs string `json:"community.com/TailLogs"`
 			} `json:"annotations"`
 		} `json:"metadata"`
-	} `json:"metadata"`
+	} `json:"items"`
 }
 
 type PodFilter struct {
-	Timeout   time.Duration
+	Timeout time.Duration
 
 	KubeHost string
 	KubePort int
@@ -38,7 +38,11 @@ type PodFilter struct {
 }
 
 func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPath string) *PodFilter {
-	f := &PodFilter{}
+	f := &PodFilter{
+		Timeout:  timeout,
+		KubeHost: kubeHost,
+		KubePort: kubePort,
+	}
 	// Cache the secret from the file
 	data, err := ioutil.ReadFile(credsPath + "/token")
 	if err != nil {
@@ -117,7 +121,7 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 
 func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	body, err := f.makeRequest(
-		fmt.Sprintf("/api/v1/namespaces/%s/pods?limit=100&labelSelector=ServiceName%3D%s", pod.Namespace, pod.ServiceName),
+		"/api/v1/namespaces/"+pod.Namespace+"/pods?limit=100&labelSelector=ServiceName%3D"+pod.ServiceName,
 	)
 	if err != nil {
 		return false, err

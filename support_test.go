@@ -71,3 +71,10 @@ func NewMockTailerFunc(tailer *mockTailer) NewTailerFunc {
 		return tailer
 	}
 }
+
+// mockFilter implements the DiscoveryFilter interface
+type mockFilter struct {}
+
+func (m *mockFilter) ShouldTailLogs(pod *Pod) (bool, error) {
+	return true, nil
+}
