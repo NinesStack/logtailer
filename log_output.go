@@ -54,6 +54,11 @@ func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
 func (sysl *UDPSyslogger) Log(line string) {
 	// 2022-12-03T16:09:51.741778906Z stdout F
 
+	// Wasn't a K8s log line!
+	if len(line) < 41 {
+		return
+	}
+
 	k8sFields := strings.Split(line[0:40], " ")
 	descriptor := k8sFields[1]
 
@@ -61,9 +66,9 @@ func (sysl *UDPSyslogger) Log(line string) {
 	// changes sometimes, we check this. It's cheaper than a split on the full
 	// log line.
 	if line[39] == ' ' {
-		line = line[40:len(line)-1]
+		line = line[40:len(line)]
 	} else {
-		line = line[39:len(line)-1]
+		line = line[39:len(line)]
 	}
 
 	// Attempt to detect errors to log (a la sidecar-executor)
