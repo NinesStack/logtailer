@@ -11,18 +11,13 @@ import (
 
 func Test_NewPodTracker(t *testing.T) {
 	Convey("NewPodTracker()", t, func() {
-		cacheFile, err := os.CreateTemp("", "seekInfoCache*")
-		So(err, ShouldBeNil)
-		cache := cache.NewCache(1, cacheFile.Name())
-
 		looper := director.NewFreeLooper(director.ONCE, make(chan error))
 		disco := newMockDisco()
 
-		tracker := NewPodTracker(looper, disco, cache)
+		tracker := NewPodTracker(looper, disco, NewMockTailerFunc(&mockTailer{}))
 
 		So(tracker.looper, ShouldEqual, looper)
 		So(tracker.disco, ShouldEqual, disco)
-		So(tracker.cache, ShouldEqual, cache)
 	})
 }
 
@@ -34,12 +29,12 @@ func Test_Run(t *testing.T) {
 	Convey("Run()", t, func() {
 		cacheFile, err := os.CreateTemp("", "seekInfoCache*")
 		So(err, ShouldBeNil)
-		cache := cache.NewCache(1, cacheFile.Name())
 
+		cache := cache.NewCache(5, cacheFile.Name())
 		looper := director.NewFreeLooper(director.ONCE, make(chan error))
 		disco := newMockDisco()
 
-		tracker := NewPodTracker(looper, disco, cache)
+		tracker := NewPodTracker(looper, disco, NewTailerWithUDPSyslog(cache, "beowulf", "127.0.0.1"))
 
 		Convey("tails the logs for a newly discovered pod", func() {
 			So(len(tracker.LogTails), ShouldEqual, 0)
@@ -150,15 +145,27 @@ func Test_Run(t *testing.T) {
 
 			So(capture, ShouldContainSubstring, "intentional test error")
 		})
+
+		Convey("starts the LogTailer properly", func() {
+			tailer := &mockTailer{}
+			tracker := NewPodTracker(looper, disco, NewMockTailerFunc(tailer))
+			disco.Pods = []*Pod{
+				&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
+			}
+
+			_ = LogCapture(func() {
+				go tracker.Run()
+				err := looper.Wait()
+				So(err, ShouldBeNil)
+			})
+
+			So(tailer.RunWasCalled, ShouldBeTrue)
+		})
 	})
 }
 
 func Test_FlushOffsets(t *testing.T) {
 	Convey("FlushOffsets()", t, func() {
-		cacheFile, err := os.CreateTemp("", "seekInfoCache*")
-		So(err, ShouldBeNil)
-		cache := cache.NewCache(1, cacheFile.Name())
-
 		looper := director.NewFreeLooper(director.ONCE, make(chan error))
 		disco := newMockDisco()
 
@@ -173,7 +180,7 @@ func Test_FlushOffsets(t *testing.T) {
 			mockTailer1 := &mockTailer{}
 			mockTailer2 := &mockTailer{}
 
-			tracker := NewPodTracker(looper, disco, cache)
+			tracker := NewPodTracker(looper, disco, NewMockTailerFunc(&mockTailer{})) // We don't use the func in this test
 			tracker.LogTails = map[string]LogTailer{"file1": mockTailer1, "file2": mockTailer2}
 
 			tracker.FlushOffsets()

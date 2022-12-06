@@ -59,6 +59,11 @@ func (d *DirListDiscoverer) Discover() ([]*Pod, error) {
 			continue
 		}
 
+		// Don't discover ourselves if we're running as a Pod!
+		if serviceName == "logtailer" {
+			continue
+		}
+
 		pods = append(pods, &Pod{
 			Name:        entry,
 			Namespace:   namespace,

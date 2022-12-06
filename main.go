@@ -36,6 +36,23 @@ func configureCache(config *Config) *cache.Cache {
 	return cache
 }
 
+// NewTailerWithUDPSyslog is passed to PodTracker to generate new Tailers with
+// UDP Syslog output. It uses a closure to pass in cache, address, and hostname.
+func NewTailerWithUDPSyslog(c *cache.Cache, hostname, address string) NewTailerFunc {
+	return func(pod *Pod) LogTailer {
+		// Configure the fields we log to Syslog
+		logger := NewUDPSyslogger(map[string]string{
+			"ServiceName": pod.ServiceName,
+			"Environment": pod.Environment,
+			"PodName":     pod.Name,
+			"Hostname":    hostname,
+		}, address)
+
+		// Wrap the return value from NewTailer as an interface
+		return NewTailer(pod, c, logger)
+	}
+}
+
 func main() {
 	var config Config
 	err := envconfig.Process("log", &config)
@@ -55,7 +72,8 @@ func main() {
 	hostname, _ := os.Hostname()
 
 	// Set up and run the tracker
-	tracker := NewPodTracker(podDiscoveryLooper, disco, cache, hostname, config.SyslogAddress)
+	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, config.SyslogAddress)
+	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc)
 	go tracker.Run()
 
 	// Persist the cache on a timer

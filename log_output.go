@@ -23,7 +23,7 @@ func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
 	// because it's simplest since there is no backpressure issue to deal with.
 	hook, err := loghooks.NewUDPHook(address)
 	if err != nil {
-		log.Fatalf("Error adding hook: %s", err)
+		log.Errorf("Error adding hook: %s", err)
 	}
 
 	syslogger.Hooks.Add(hook)
@@ -57,9 +57,18 @@ func (sysl *UDPSyslogger) Log(line string) {
 	k8sFields := strings.Split(line[0:40], " ")
 	descriptor := k8sFields[1]
 
+	// Strip the K8s logging stuff from the log. Because the timestamp length
+	// changes sometimes, we check this. It's cheaper than a split on the full
+	// log line.
+	if line[39] == ' ' {
+		line = line[40:len(line)-1]
+	} else {
+		line = line[39:len(line)-1]
+	}
+
 	// Attempt to detect errors to log (a la sidecar-executor)
 	if descriptor == "stderr" || strings.Contains(strings.ToLower(line), "error") {
-		sysl.syslogger.Error(line[40 : len(line)-1])
+		sysl.syslogger.Error(line)
 		return
 	}
 

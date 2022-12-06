@@ -53,11 +53,21 @@ func (d *mockDisco) LogFiles(pod string) ([]string, error) {
 // mockTailer implements the LogTailer interface, for testing
 type mockTailer struct {
 	FlushOffsetsWasCalled bool
-	RunWasCalled bool
-	StopWasCalled bool
+	RunWasCalled          bool
+	StopWasCalled         bool
+
+	PodTailed *Pod
 }
 
 func (t *mockTailer) TailLogs(logFiles []string) error { return nil }
-func (t *mockTailer) Run() { t.RunWasCalled = true }
-func (t *mockTailer) FlushOffsets() { t.FlushOffsetsWasCalled = true }
-func (t *mockTailer) Stop() { t.StopWasCalled = true }
+func (t *mockTailer) Run()                             { t.RunWasCalled = true }
+func (t *mockTailer) FlushOffsets()                    { t.FlushOffsetsWasCalled = true }
+func (t *mockTailer) Stop()                            { t.StopWasCalled = true }
+
+// NewMockTailerFunc is injected into a PodTracker get it to use mockTailers
+func NewMockTailerFunc(tailer *mockTailer) NewTailerFunc {
+	return func(pod *Pod) LogTailer {
+		tailer.PodTailed = pod
+		return tailer
+	}
+}
