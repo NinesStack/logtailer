@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Shimmur/logtailer/cache"
 	director "github.com/relistan/go-director"
@@ -34,7 +35,13 @@ func Test_Run(t *testing.T) {
 		looper := director.NewFreeLooper(director.ONCE, make(chan error))
 		disco := newMockDisco()
 
-		tracker := NewPodTracker(looper, disco, NewTailerWithUDPSyslog(cache, "beowulf", "127.0.0.1"))
+		config := &Config{
+			SyslogAddress: "127.0.0.1",
+			TokenLimit:    300,
+			LimitInterval: 1 * time.Minute,
+		}
+
+		tracker := NewPodTracker(looper, disco, NewTailerWithUDPSyslog(cache, "beowulf", config))
 
 		Convey("tails the logs for a newly discovered pod", func() {
 			So(len(tracker.LogTails), ShouldEqual, 0)
