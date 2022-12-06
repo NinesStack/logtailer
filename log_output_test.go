@@ -1,12 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"testing"
 	"time"
-	"encoding/json"
 
+	"github.com/Shimmur/logtailer/reporter"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -43,6 +44,29 @@ func Test_UDPSyslogger(t *testing.T) {
 			So(theJson.ServiceName, ShouldEqual, "bocaccio")
 			So(theJson.Payload, ShouldEqual, logLine[40:len(logLine)])
 			So(theJson.Timestamp, ShouldNotBeEmpty)
+		})
+	})
+}
+
+func Test_RateLimitingLogger(t *testing.T) {
+	Convey("RateLimitingLogger", t, func() {
+		rptr := reporter.NewLimitExceededReporter("", "", "")
+		mockUpstream := &mockLogOutput{}
+		logger := NewRateLimitingLogger(
+			rptr, 1, 1*time.Millisecond, "ServiceName", mockUpstream,
+		)
+
+		Convey("can detect when logging has gone too far", func() {
+			logger.Log("a line")
+			So(mockUpstream.WasCalled, ShouldBeTrue)
+			mockUpstream.WasCalled = false
+
+			logger.Log("a line 2")
+			So(mockUpstream.WasCalled, ShouldBeFalse)
+
+			logger.Log("a line 3")
+			So(mockUpstream.WasCalled, ShouldBeFalse)
+			So(mockUpstream.LastLogged, ShouldEqual, "a line")
 		})
 	})
 }

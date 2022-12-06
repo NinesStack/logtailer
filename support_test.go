@@ -73,8 +73,19 @@ func NewMockTailerFunc(tailer *mockTailer) NewTailerFunc {
 }
 
 // mockFilter implements the DiscoveryFilter interface
-type mockFilter struct {}
+type mockFilter struct{}
 
 func (m *mockFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	return true, nil
+}
+
+// mockLogOutput implements the LogOutput interfacw
+type mockLogOutput struct {
+	LastLogged string
+	WasCalled bool
+}
+
+func (m *mockLogOutput) Log(line string) {
+	m.WasCalled = true
+	m.LastLogged = line
 }
