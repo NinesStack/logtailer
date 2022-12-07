@@ -10,7 +10,7 @@ const fixturesDir = "fixtures/pods"
 
 func Test_NewDirListDiscoverer(t *testing.T) {
 	Convey("NewDirListDiscoverer() properly configures a discoverer", t, func() {
-		disco := NewDirListDiscoverer(fixturesDir, "dev", &mockFilter{})
+		disco := NewDirListDiscoverer(fixturesDir, "dev")
 
 		So(disco.Dir, ShouldEqual, fixturesDir)
 	})
@@ -18,7 +18,7 @@ func Test_NewDirListDiscoverer(t *testing.T) {
 
 func Test_Discover(t *testing.T) {
 	Convey("Discover()", t, func() {
-		disco := NewDirListDiscoverer(fixturesDir, "dev", &mockFilter{})
+		disco := NewDirListDiscoverer(fixturesDir, "dev")
 
 		Convey("finds all the pods, but not ourselves", func() {
 			capture := LogCapture(func() {
@@ -30,7 +30,6 @@ func Test_Discover(t *testing.T) {
 			So(capture, ShouldNotContainSubstring, "Error")
 			So(capture, ShouldNotContainSubstring, "logtailer")
 		})
-
 
 		Convey("fills out the details properly for each", func() {
 			capture := LogCapture(func() {
@@ -45,13 +44,13 @@ func Test_Discover(t *testing.T) {
 				So(discovered[2].Namespace, ShouldEqual, "default")
 				So(discovered[2].ServiceName, ShouldEqual, "pipeline-comparator")
 				So(discovered[2].Environment, ShouldEqual, "dev")
-		})
+			})
 
 			So(capture, ShouldNotContainSubstring, "Error")
 		})
 
 		Convey("errors when it can't open the dir", func() {
-			disco := NewDirListDiscoverer("path-does-not-exist", "dev", &mockFilter{})
+			disco := NewDirListDiscoverer("path-does-not-exist", "dev")
 			discovered, err := disco.Discover()
 
 			So(err, ShouldNotBeNil)
@@ -63,7 +62,7 @@ func Test_Discover(t *testing.T) {
 
 func Test_LogFiles(t *testing.T) {
 	Convey("LogFiles()", t, func() {
-		disco := NewDirListDiscoverer(fixturesDir, "dev", &mockFilter{})
+		disco := NewDirListDiscoverer(fixturesDir, "dev")
 
 		Convey("finds all the files", func() {
 			discovered, err := disco.LogFiles("default_pipeline-comparator-749f97cb4b-w8w4r_e5f10cd8-fb8a-4ade-b402-9b33f34f017f")
@@ -83,7 +82,7 @@ func Test_LogFiles(t *testing.T) {
 
 func Test_namesFor(t *testing.T) {
 	Convey("namesFor()", t, func() {
-		disco := NewDirListDiscoverer(fixturesDir, "dev", &mockFilter{})
+		disco := NewDirListDiscoverer(fixturesDir, "dev")
 
 		Convey("handles names with dashes in them", func() {
 			ns, serviceName, err := disco.namesFor("default_pipeline-comparator-749f97cb4b-w8w4r_e5f10cd8-fb8a-4ade-b402-9b33f34f017f")

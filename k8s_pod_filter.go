@@ -27,6 +27,8 @@ type K8sPodsMetadata struct {
 	} `json:"items"`
 }
 
+// A PodFilter calls out to the Kubernetes API and determines if annotations
+// are present on a pod that would enable us to track logs for that pod.
 type PodFilter struct {
 	Timeout time.Duration
 
@@ -121,7 +123,7 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 
 func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	body, err := f.makeRequest(
-		"/api/v1/namespaces/"+pod.Namespace+"/pods?limit=100&labelSelector=ServiceName%3D"+pod.ServiceName,
+		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100&labelSelector=ServiceName%3D" + pod.ServiceName,
 	)
 	if err != nil {
 		return false, err

@@ -96,7 +96,7 @@ func main() {
 	// Some deps for injection
 	cache := configureCache(&config)
 	filter := NewPodFilter(config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath)
-	disco := NewDirListDiscoverer(config.BasePath, config.Environment, filter)
+	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
 	podDiscoveryLooper := director.NewImmediateTimedLooper(
 		director.FOREVER, config.DiscoInterval, make(chan error))
 	cacheLooper := director.NewTimedLooper(
@@ -106,7 +106,7 @@ func main() {
 
 	// Set up and run the tracker
 	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, &config)
-	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc)
+	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc, filter)
 	go tracker.Run()
 
 	// Persist the cache on a timer

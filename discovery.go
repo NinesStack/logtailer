@@ -20,6 +20,7 @@ var (
 	podNameRegexp = regexp.MustCompile("(-[a-f0-9]+)?-[a-z0-9]{5}_([a-f0-9-]+){5}$")
 )
 
+// A Pod represents all the info we care about for a Kubernetes Pod
 type Pod struct {
 	Name        string
 	Namespace   string
@@ -39,17 +40,17 @@ type DiscoveryFilter interface {
 	ShouldTailLogs(pod *Pod) (bool, error)
 }
 
+// A DirListDiscoverer finds new pods to potentitally tail by watching the logs
+// filesystem.
 type DirListDiscoverer struct {
 	Dir         string
 	Environment string
-	Filter      DiscoveryFilter
 }
 
-func NewDirListDiscoverer(path, environment string, filter DiscoveryFilter) *DirListDiscoverer {
+func NewDirListDiscoverer(path, environment string) *DirListDiscoverer {
 	return &DirListDiscoverer{
 		Dir:         path,
 		Environment: environment,
-		Filter:      filter,
 	}
 }
 
@@ -72,22 +73,12 @@ func (d *DirListDiscoverer) Discover() ([]*Pod, error) {
 			continue
 		}
 
-		pod := &Pod{
+		pods = append(pods, &Pod{
 			Name:        entry,
 			Namespace:   namespace,
 			ServiceName: serviceName,
 			Environment: d.Environment,
-		}
-
-		shouldTail, err := d.Filter.ShouldTailLogs(pod)
-		if err != nil {
-			log.Errorf("Failed to check filter for pod %s, disabling logging", pod.Name)
-			continue
-		}
-
-		if shouldTail {
-			pods = append(pods, pod)
-		}
+		})
 	}
 
 	return pods, nil

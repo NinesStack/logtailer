@@ -112,7 +112,6 @@ func Test_makeRequest(t *testing.T) {
 	})
 }
 
-
 func Test_ShouldTailLogs(t *testing.T) {
 	Convey("ShouldTailLogs()", t, func() {
 		Reset(func() { httpmock.DeactivateAndReset() })
@@ -122,7 +121,7 @@ func Test_ShouldTailLogs(t *testing.T) {
 
 		Convey("makes a request with the right headers and auth", func() {
 			var auth string
-		httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
 				func(req *http.Request) (*http.Response, error) {
 					auth = req.Header.Get("Authorization")
 					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations": {"community.com/TailLogs":"true"}}}]}`), nil
@@ -130,9 +129,9 @@ func Test_ShouldTailLogs(t *testing.T) {
 			)
 
 			pod := &Pod{
-				Name: "awesome-pod",
+				Name:        "awesome-pod",
 				ServiceName: "awesome-pod",
-				Namespace: "the-awesome-place",
+				Namespace:   "the-awesome-place",
 			}
 
 			shouldTail, err := filter.ShouldTailLogs(pod)
