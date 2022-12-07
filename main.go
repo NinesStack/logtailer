@@ -59,9 +59,8 @@ func configureCache(config *Config) *cache.Cache {
 
 // NewTailerWithUDPSyslog is passed to PodTracker to generate new Tailers with
 // UDP Syslog output. It uses a closure to pass in cache, address, and hostname.
-func NewTailerWithUDPSyslog(c *cache.Cache, hostname string, config *Config) NewTailerFunc {
-	// Make a reporter for injection
-	rptr := reporter.NewLimitExceededReporter(NewRelicBaseURL, config.NewRelicKey, config.NewRelicAccount)
+func NewTailerWithUDPSyslog(c *cache.Cache, hostname string,
+	config *Config, rptr *reporter.LimitExceededReporter) NewTailerFunc {
 
 	return func(pod *Pod) LogTailer {
 		// Configure the fields we log to Syslog
@@ -107,8 +106,14 @@ func main() {
 
 	// Some deps for injection
 	cache := configureCache(&config)
-	podFilter := NewPodFilter(config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath)
+	podFilter := NewPodFilter(
+		config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath,
+	)
 	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
+	rptr := reporter.NewLimitExceededReporter(
+		NewRelicBaseURL, config.NewRelicKey, config.NewRelicAccount,
+	)
+
 	podDiscoveryLooper := director.NewImmediateTimedLooper(
 		director.FOREVER, config.DiscoInterval, make(chan error))
 	cacheLooper := director.NewTimedLooper(
@@ -125,9 +130,12 @@ func main() {
 	}
 
 	// Set up and run the tracker
-	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, &config)
+	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, &config, rptr)
 	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc, filter)
 	go tracker.Run()
+
+	// Run the reporter
+	go rptr.Run()
 
 	// Persist the cache on a timer
 	go cacheLooper.Loop(func() error {
