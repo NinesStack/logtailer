@@ -31,3 +31,16 @@ Configuration
 
 This is configured with environment variables. They are all in `main.go` in
 the `Config` struct at the top.
+
+
+Running Locally for Testing
+---------------------------
+
+You can invoke this from the current directory using the test fixtures
+to represent logfiles:
+
+```
+CACHE_FILE_PATH=./logtailer.json BASE_PATH=fixtures/pods DEBUG=true ./logtailer
+```
+
+It will fail to call Kubernetes for filtering

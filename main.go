@@ -93,9 +93,11 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	var filter DiscoveryFilter
+
 	// Some deps for injection
 	cache := configureCache(&config)
-	filter := NewPodFilter(config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath)
+	podFilter := NewPodFilter(config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath)
 	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
 	podDiscoveryLooper := director.NewImmediateTimedLooper(
 		director.FOREVER, config.DiscoInterval, make(chan error))
@@ -103,6 +105,14 @@ func main() {
 		director.FOREVER, config.CacheFlushInterval, make(chan error))
 
 	hostname, _ := os.Hostname()
+
+	// In the event our filter can't find the right creds, etc, we fail open
+	if podFilter != nil {
+		filter = podFilter
+	} else {
+		log.Warn("Failed to configure filter, proceeding anyway using stub...")
+		filter = &StubFilter{}
+	}
 
 	// Set up and run the tracker
 	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, &config)

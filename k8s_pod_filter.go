@@ -143,3 +143,9 @@ func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	// If *ANY* of the pods enables logs, we enable for all of them
 	return (pods.Items[0].Metadata.Annotations.CommunityComTailLogs == "true"), nil
 }
+
+// A StubFilter is used when we fail to talk to Kubernetes, e.g. when
+// running locally.
+type StubFilter struct{}
+
+func (f *StubFilter) ShouldTailLogs(pod *Pod) (bool, error) { return true, nil }
