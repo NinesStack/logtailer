@@ -52,4 +52,5 @@ to represent logfiles:
 CACHE_FILE_PATH=./logtailer.json BASE_PATH=fixtures/pods DEBUG=true ./logtailer
 ```
 
-It will fail to call Kubernetes for filtering
+It will fail to call Kubernetes for filtering and will proceed with a
+`StubFilter` in place that always returns `true`.
