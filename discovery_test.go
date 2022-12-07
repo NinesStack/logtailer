@@ -20,7 +20,7 @@ func Test_Discover(t *testing.T) {
 	Convey("Discover()", t, func() {
 		disco := NewDirListDiscoverer(fixturesDir, "dev")
 
-		Convey("finds all the pods", func() {
+		Convey("finds all the pods, but not ourselves", func() {
 			capture := LogCapture(func() {
 				discovered, err := disco.Discover()
 				So(err, ShouldBeNil)
@@ -28,7 +28,9 @@ func Test_Discover(t *testing.T) {
 			})
 
 			So(capture, ShouldNotContainSubstring, "Error")
+			So(capture, ShouldNotContainSubstring, "logtailer")
 		})
+
 
 		Convey("fills out the details properly for each", func() {
 			capture := LogCapture(func() {

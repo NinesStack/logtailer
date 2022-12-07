@@ -5,22 +5,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// A PodTracker keeps a cache of all the Tailers and orchestrates them based on
+type NewTailerFunc func(pod *Pod) LogTailer
+
+// A PodTracker keeps track of all the Tailers and orchestrates them based on
 // what it finds out from discovery, on time loop controlled by the looper.
 type PodTracker struct {
-	LogTails map[string]*Tailer
+	LogTails map[string]LogTailer
 
-	disco  Discoverer
-	looper director.Looper
+	disco         Discoverer
+	looper        director.Looper
+	newTailerFunc NewTailerFunc
 }
 
 // NewPodTracker configures a PodTracker for use, assigning the given Looper
 // and Discoverer, and making sure the caching map is made.
-func NewPodTracker(looper director.Looper, disco Discoverer) *PodTracker {
+func NewPodTracker(looper director.Looper, disco Discoverer, newTailerFunc NewTailerFunc) *PodTracker {
 	return &PodTracker{
-		LogTails: make(map[string]*Tailer, 5),
-		looper:   looper,
-		disco:    disco,
+		LogTails:      make(map[string]LogTailer, 5),
+		looper:        looper,
+		disco:         disco,
+		newTailerFunc: newTailerFunc,
 	}
 }
 
@@ -34,7 +38,7 @@ func (t *PodTracker) Run() {
 			return err
 		}
 
-		newTails := make(map[string]*Tailer, len(t.LogTails))
+		newTails := make(map[string]LogTailer, len(t.LogTails))
 
 		for _, pod := range discovered {
 			// Handle newly discovered pods
@@ -47,7 +51,7 @@ func (t *PodTracker) Run() {
 					continue
 				}
 
-				tailer := NewTailer(pod)
+				tailer := t.newTailerFunc(pod)
 				err = tailer.TailLogs(logFiles)
 				if err != nil {
 					log.Warnf("Failed to tail logs for pod %s: %s", pod.Name, err)
@@ -81,4 +85,10 @@ func (t *PodTracker) Run() {
 
 		return nil
 	})
+}
+
+func (t *PodTracker) FlushOffsets() {
+	for _, tailer := range t.LogTails {
+		tailer.FlushOffsets()
+	}
 }

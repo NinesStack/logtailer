@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"testing"
 
-	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 // LogCapture logs for async testing where we can't get a nice handle on thigns
@@ -53,14 +50,24 @@ func (d *mockDisco) LogFiles(pod string) ([]string, error) {
 	return d.Logs, nil
 }
 
-func Test_NewPodTracker(t *testing.T) {
-	Convey("NewPodTracker()", t, func() {
-		looper := director.NewFreeLooper(director.ONCE, make(chan error))
-		disco := newMockDisco()
+// mockTailer implements the LogTailer interface, for testing
+type mockTailer struct {
+	FlushOffsetsWasCalled bool
+	RunWasCalled          bool
+	StopWasCalled         bool
 
-		tracker := NewPodTracker(looper, disco)
+	PodTailed *Pod
+}
 
-		So(tracker.looper, ShouldEqual, looper)
-		So(tracker.disco, ShouldEqual, disco)
-	})
+func (t *mockTailer) TailLogs(logFiles []string) error { return nil }
+func (t *mockTailer) Run()                             { t.RunWasCalled = true }
+func (t *mockTailer) FlushOffsets()                    { t.FlushOffsetsWasCalled = true }
+func (t *mockTailer) Stop()                            { t.StopWasCalled = true }
+
+// NewMockTailerFunc is injected into a PodTracker get it to use mockTailers
+func NewMockTailerFunc(tailer *mockTailer) NewTailerFunc {
+	return func(pod *Pod) LogTailer {
+		tailer.PodTailed = pod
+		return tailer
+	}
 }
