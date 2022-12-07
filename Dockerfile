@@ -14,8 +14,10 @@ RUN go build
 
 # -- Production Container --------------------
 # This needs to be a real OS container because the inotify stuff calls exec
-FROM alpine:3.17
+FROM alpine:${ALPINE_VERSION}
+RUN apk add --update bind-tools
 
 COPY --from=builder /build/logtailer /logtailer
+COPY run.sh /run.sh
 
-CMD ["/logtailer"]
+CMD ["/run.sh"]
