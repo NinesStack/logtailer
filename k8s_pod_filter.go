@@ -14,7 +14,6 @@ import (
 	"time"
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
-	loghttp "github.com/motemen/go-loghttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -80,17 +79,7 @@ func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPat
 		RootCAs: rootCAs,
 	}
 
-	transport := &loghttp.Transport{
-		LogRequest: func(req *http.Request) {
-			log.Printf("[%#v] %s %#v", req, req.Method, req.URL)
-		},
-		LogResponse: func(resp *http.Response) {
-			log.Printf("[%#v] %d %#v", resp.Request, resp.StatusCode, resp.Request.URL)
-		},
-		Transport: &http.Transport{TLSClientConfig: config},
-	}
-
-	f.client.Transport = transport
+	f.client.Transport = &http.Transport{TLSClientConfig: config}
 
 	return f
 }
@@ -106,7 +95,6 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse the path! %s: %w", path, err)
 	}
-
 	apiURL.Scheme = scheme
 	apiURL.Host = fmt.Sprintf("%s:%d", f.KubeHost, f.KubePort)
 
