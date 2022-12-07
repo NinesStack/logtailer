@@ -89,7 +89,11 @@ func Test_Run(t *testing.T) {
 			So(capture, ShouldContainSubstring, "Skipping pod default_chopper-f5b66c6bf")
 			So(capture, ShouldNotContainSubstring, "Adding tail on fixtures/pods/default_chopper-f5b66c6bf")
 			So(capture, ShouldNotContainSubstring, "Waiting for") // This happens if the file isn't found
-			So(len(tracker.LogTails), ShouldEqual, 0)
+			So(len(tracker.LogTails), ShouldEqual, 1)
+
+			// But, there should not be any logfiles tracked
+			activeTails := tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"].(*Tailer)
+			So(len(activeTails.LogTails), ShouldEqual, 0)
 		})
 
 		Convey("continues to track a pod that was already seen", func() {

@@ -55,15 +55,16 @@ func (t *PodTracker) Run() {
 					continue
 				}
 
-				if !shouldTail {
-					log.Infof("Skipping pod %s because filter says to", pod.Name)
-					continue
-				}
-
 				logFiles, err := t.disco.LogFiles(pod.Name)
 				if err != nil {
 					log.Warnf("Failed to get logs for pod %s: %s", pod.Name, err)
 					continue
+				}
+
+				// We keep state on these, but empty the list of log files to prevent tailing
+				if !shouldTail {
+					log.Infof("Skipping pod %s because filter says to", pod.Name)
+					logFiles = []string{}
 				}
 
 				tailer := t.newTailerFunc(pod)
