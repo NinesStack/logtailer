@@ -35,7 +35,7 @@ spec:
         command:
         - "/vault-init"
       containers:
-      - image: quay.io/shimmur/logtailer:ecb51bb-local-build
+      - image: quay.io/shimmur/logtailer:2830551-local-build
         name: alpine
         resources:
           requests:

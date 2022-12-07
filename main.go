@@ -86,7 +86,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	rubberneck.Print(config)
+
+	// Redact the secret key
+	var redacted = "[REDACTED]"
+	maskFunc := func(argument string) *string {
+		if argument == "NewRelicKey" {
+			return &redacted
+		}
+		return nil
+	}
+	printer := rubberneck.NewPrinterWithKeyMasking(log.Printf, maskFunc, rubberneck.NoAddLineFeed)
+	printer.Print(config)
 
 	// Maybe enable debug logging for this service
 	if config.Debug {
