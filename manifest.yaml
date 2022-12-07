@@ -2,10 +2,11 @@ apiVersion: apps/v1
 kind: DaemonSet 
 metadata:
   labels:
-    app: logtailer
     ServiceName: logtailer
     Environment: dev
+    app: logtailer
   name: logtailer
+  namespace: sidecar
 spec:
   selector:
     matchLabels:
@@ -15,6 +16,8 @@ spec:
   template:
     metadata:
       labels:
+        ServiceName: logtailer
+        Environment: dev
         app: logtailer
     spec:
       serviceAccount: sidecar
@@ -34,7 +37,7 @@ spec:
         command:
         - "/vault-init"
       containers:
-      - image: quay.io/shimmur/logtailer:e6023cc-local-build
+      - image: quay.io/shimmur/logtailer:18b1bd7-local-build
         name: alpine
         resources:
           requests:
@@ -48,8 +51,8 @@ spec:
           value: dev
         - name: NEW_RELIC_ACCOUNT
           value: '2192796'
-        - name: SYSLOG_ADDRESS
-          value: '10.0.12.173'
+        - name: LOGHOST
+          value: 'syslog.uw2.prod.sms.community'
         - name: HOSTNAME
           valueFrom:
             fieldRef:
@@ -61,7 +64,11 @@ spec:
         volumeMounts:
           - name: host-mount
             mountPath: /var/log
+          - name: vault-vars
+            mountPath: "/vault"
       volumes:
         - name: host-mount
           hostPath:
             path: /var/log 
+        - name: vault-vars
+          emptyDir: {}
