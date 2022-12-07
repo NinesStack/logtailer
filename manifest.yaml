@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: DaemonSet 
+metadata:
+  labels:
+    ServiceName: logtailer
+    Environment: dev
+    app: logtailer
+  name: logtailer
+  namespace: sidecar
+spec:
+  selector:
+    matchLabels:
+      ServiceName: logtailer
+      Environment: dev
+      app: logtailer
+  template:
+    metadata:
+      labels:
+        ServiceName: logtailer
+        Environment: dev
+        app: logtailer
+    spec:
+      serviceAccountName: sidecar
+      initContainers:
+      - name: vault-init
+        image: quay.io/shimmur/vault-init:d1322e9
+        volumeMounts:
+        - name: vault-vars
+          mountPath: "/vault"
+        env:
+        - name: NEW_RELIC_LICENSE_KEY
+          value: vault://secret/infra/newrelic?key=license
+        - name: FILENAME
+          value: "/vault/.init-env"
+        command:
+        - "/vault-init"
+      containers:
+      - image: quay.io/shimmur/logtailer:811859c-local-build
+        name: alpine
+        resources:
+          requests:
+            cpu: 0.2
+            memory: 64Mi
+          limits:
+            cpu: 0.2
+            memory: 64Mi
+        env:
+        - name: ENVIRONMENT
+          value: dev
+        - name: NEW_RELIC_ACCOUNT
+          value: '2192796'
+        - name: LOGHOST
+          value: 'syslog.uw2.prod.sms.community'
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: K8S_CLUSTER_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        volumeMounts:
+          - name: host-mount
+            mountPath: /var/log
+          - name: vault-vars
+            mountPath: "/vault"
+      volumes:
+        - name: host-mount
+          hostPath:
+            path: /var/log 
+        - name: vault-vars
+          emptyDir: {}

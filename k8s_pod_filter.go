@@ -90,11 +90,13 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 		scheme = "https"
 	}
 
-	apiURL := url.URL{
-		Scheme: scheme,
-		Host:   fmt.Sprintf("%s:%d", f.KubeHost, f.KubePort),
-		Path:   path,
+	// Start with the path, then add the host and scheme
+	apiURL, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse the path! %s: %w", path, err)
 	}
+	apiURL.Scheme = scheme
+	apiURL.Host = fmt.Sprintf("%s:%d", f.KubeHost, f.KubePort)
 
 	req, err := http.NewRequest("GET", apiURL.String(), nil)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Shimmur/logtailer/cache"
+	"github.com/Shimmur/logtailer/reporter"
 	director "github.com/relistan/go-director"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -41,7 +42,9 @@ func Test_Run(t *testing.T) {
 			LimitInterval: 1 * time.Minute,
 		}
 
-		tracker := NewPodTracker(looper, disco, NewTailerWithUDPSyslog(cache, "beowulf", config), &mockFilter{})
+		rptr := reporter.NewLimitExceededReporter("", "", "")
+
+		tracker := NewPodTracker(looper, disco, NewTailerWithUDPSyslog(cache, "beowulf", config, rptr), &mockFilter{})
 
 		Convey("tails the logs for a newly discovered pod", func() {
 			So(len(tracker.LogTails), ShouldEqual, 0)

@@ -51,7 +51,9 @@ func (t *PodTracker) Run() {
 
 				shouldTail, err := t.Filter.ShouldTailLogs(pod)
 				if err != nil {
-					log.Errorf("Failed to check filter for pod %s, disabling logging", pod.Name)
+					log.Errorf(
+						"Failed to check filter for pod %s, disabling logging: %s", err, pod.Name,
+					)
 					continue
 				}
 
