@@ -20,9 +20,7 @@ spec:
         Environment: dev
         app: logtailer
     spec:
-      serviceAccount: sidecar
-      imagePullSecrets:
-      - name: privaterepoauth
+      serviceAccountName: sidecar
       initContainers:
       - name: vault-init
         image: quay.io/shimmur/vault-init:d1322e9
@@ -37,7 +35,7 @@ spec:
         command:
         - "/vault-init"
       containers:
-      - image: quay.io/shimmur/logtailer:18b1bd7-local-build
+      - image: quay.io/shimmur/logtailer:e7e42a6-local-build
         name: alpine
         resources:
           requests:

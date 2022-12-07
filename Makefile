@@ -49,7 +49,7 @@ cover: #: Open coverage report in a browser
 .PHONY: docker-build
 docker-build: #: Build the Docker image to deploy
 docker-build:
-	DOCKER_BUILDKIT=1 docker build --tag quay.io/shimmur/$(APP_NAME):$(APP_VSN)-local-build --ssh default .
+	DOCKER_BUILDKIT=1 docker build --no-cache --tag quay.io/shimmur/$(APP_NAME):$(APP_VSN)-local-build --ssh default .
 
 .PHONY: docker-push
 docker-push: #: Push local docker image to quay.io

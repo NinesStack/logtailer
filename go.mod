@@ -7,6 +7,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/jarcoal/httpmock v1.0.8
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/motemen/go-loghttp v0.0.0-20170804080138-974ac5ceac27
 	github.com/nxadm/tail v1.4.8
 	github.com/relistan/go-director v0.0.0-20200406104025-dbbf5d95248d
 	github.com/relistan/rubberneck v1.3.0
@@ -19,6 +20,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181103185306-d547d1d9531e // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
+	github.com/motemen/go-nuts v0.0.0-20220604134737-2658d0104f31 // indirect
 	github.com/smartystreets/assertions v1.0.0 // indirect
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

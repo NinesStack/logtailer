@@ -15,6 +15,7 @@ import (
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	log "github.com/sirupsen/logrus"
+	loghttp "github.com/motemen/go-loghttp"
 )
 
 type K8sPodsMetadata struct {
@@ -79,7 +80,17 @@ func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPat
 		RootCAs: rootCAs,
 	}
 
-	f.client.Transport = &http.Transport{TLSClientConfig: config}
+	transport := &loghttp.Transport{
+		LogRequest: func(req *http.Request) {
+			log.Printf("[%p] %s %s", req, req.Method, req.URL)
+		},
+		LogResponse: func(resp *http.Response) {
+			log.Printf("[%p] %d %s", resp.Request, resp.StatusCode, resp.Request.URL)
+		},
+		Transport: &http.Transport{TLSClientConfig: config},
+	}
+
+	f.client.Transport = transport
 
 	return f
 }
