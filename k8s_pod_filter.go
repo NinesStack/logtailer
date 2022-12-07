@@ -82,10 +82,10 @@ func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPat
 
 	transport := &loghttp.Transport{
 		LogRequest: func(req *http.Request) {
-			log.Printf("[%p] %s %s", req, req.Method, req.URL)
+			log.Printf("[%#v] %s %s", req, req.Method, req.URL)
 		},
 		LogResponse: func(resp *http.Response) {
-			log.Printf("[%p] %d %s", resp.Request, resp.StatusCode, resp.Request.URL)
+			log.Printf("[%#v] %d %s", resp.Request, resp.StatusCode, resp.Request.URL)
 		},
 		Transport: &http.Transport{TLSClientConfig: config},
 	}
