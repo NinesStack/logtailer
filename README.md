@@ -32,6 +32,15 @@ Configuration
 This is configured with environment variables. They are all in `main.go` in
 the `Config` struct at the top.
 
+Services can be configured to have their logs tailed by `logtailer` by
+adding an annotation to the template in the `Deployment`:
+
+```
+community.com/TailLogs=true
+```
+
+logtailer will discover those annotations and enable log tailing and
+syslogging.
 
 Running Locally for Testing
 ---------------------------
