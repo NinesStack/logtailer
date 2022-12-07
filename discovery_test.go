@@ -6,7 +6,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-const fixturesDir = "fixtures"
+const fixturesDir = "fixtures/pods"
 
 func Test_NewDirListDiscoverer(t *testing.T) {
 	Convey("NewDirListDiscoverer() properly configures a discoverer", t, func() {
@@ -31,7 +31,6 @@ func Test_Discover(t *testing.T) {
 			So(capture, ShouldNotContainSubstring, "logtailer")
 		})
 
-
 		Convey("fills out the details properly for each", func() {
 			capture := LogCapture(func() {
 				discovered, err := disco.Discover()
@@ -45,7 +44,7 @@ func Test_Discover(t *testing.T) {
 				So(discovered[2].Namespace, ShouldEqual, "default")
 				So(discovered[2].ServiceName, ShouldEqual, "pipeline-comparator")
 				So(discovered[2].Environment, ShouldEqual, "dev")
-		})
+			})
 
 			So(capture, ShouldNotContainSubstring, "Error")
 		})

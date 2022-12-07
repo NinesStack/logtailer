@@ -11,6 +11,7 @@ type NewTailerFunc func(pod *Pod) LogTailer
 // what it finds out from discovery, on time loop controlled by the looper.
 type PodTracker struct {
 	LogTails map[string]LogTailer
+	Filter   DiscoveryFilter
 
 	disco         Discoverer
 	looper        director.Looper
@@ -19,12 +20,15 @@ type PodTracker struct {
 
 // NewPodTracker configures a PodTracker for use, assigning the given Looper
 // and Discoverer, and making sure the caching map is made.
-func NewPodTracker(looper director.Looper, disco Discoverer, newTailerFunc NewTailerFunc) *PodTracker {
+func NewPodTracker(looper director.Looper, disco Discoverer,
+	newTailerFunc NewTailerFunc, filter DiscoveryFilter) *PodTracker {
+
 	return &PodTracker{
 		LogTails:      make(map[string]LogTailer, 5),
 		looper:        looper,
 		disco:         disco,
 		newTailerFunc: newTailerFunc,
+		Filter:        filter,
 	}
 }
 
@@ -45,10 +49,22 @@ func (t *PodTracker) Run() {
 			if _, ok := t.LogTails[pod.Name]; !ok {
 				log.Infof("new pod --> %s:%s  [%s]", pod.Namespace, pod.ServiceName, pod.Name)
 
+				shouldTail, err := t.Filter.ShouldTailLogs(pod)
+				if err != nil {
+					log.Errorf("Failed to check filter for pod %s, disabling logging", pod.Name)
+					continue
+				}
+
 				logFiles, err := t.disco.LogFiles(pod.Name)
 				if err != nil {
 					log.Warnf("Failed to get logs for pod %s: %s", pod.Name, err)
 					continue
+				}
+
+				// We keep state on these, but empty the list of log files to prevent tailing
+				if !shouldTail {
+					log.Infof("Skipping pod %s because filter says to", pod.Name)
+					logFiles = []string{}
 				}
 
 				tailer := t.newTailerFunc(pod)
