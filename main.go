@@ -79,6 +79,19 @@ func NewTailerWithUDPSyslog(c *cache.Cache, hostname string,
 	}
 }
 
+// getHostname figures out what the hostname is that we should use for log records
+func getHostname() string {
+	// This allows us to override the hostname for running inside a container and having the
+	// host's hostname in logs
+	if hostname := os.Getenv("HOSTNAME"); hostname != "" {
+		return hostname
+	}
+
+	// Otherwise fall back to the Uname from syscall
+	hostname, _ := os.Hostname()
+	return hostname
+}
+
 func main() {
 	var config Config
 	err := envconfig.Process("log", &config)
@@ -119,8 +132,6 @@ func main() {
 	cacheLooper := director.NewTimedLooper(
 		director.FOREVER, config.CacheFlushInterval, make(chan error))
 
-	hostname, _ := os.Hostname()
-
 	// In the event our filter can't find the right creds, etc, we fail open
 	if podFilter != nil {
 		filter = podFilter
@@ -130,7 +141,7 @@ func main() {
 	}
 
 	// Set up and run the tracker
-	newTailerFunc := NewTailerWithUDPSyslog(cache, hostname, &config, rptr)
+	newTailerFunc := NewTailerWithUDPSyslog(cache, getHostname(), &config, rptr)
 	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc, filter)
 	go tracker.Run()
 
