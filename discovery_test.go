@@ -24,7 +24,7 @@ func Test_Discover(t *testing.T) {
 			capture := LogCapture(func() {
 				discovered, err := disco.Discover()
 				So(err, ShouldBeNil)
-				So(len(discovered), ShouldEqual, 6)
+				So(len(discovered), ShouldEqual, 7)
 			})
 
 			So(capture, ShouldNotContainSubstring, "Error")
@@ -40,10 +40,15 @@ func Test_Discover(t *testing.T) {
 				So(discovered[1].ServiceName, ShouldEqual, "chopper")
 				So(discovered[1].Environment, ShouldEqual, "dev")
 
-				So(discovered[2].Name, ShouldEqual, "default_pipeline-comparator-749f97cb4b-w8w4r_e5f10cd8-fb8a-4ade-b402-9b33f34f017f")
+				So(discovered[2].Name, ShouldEqual, "default_kmtest_abe513f2-8a73-46f6-bd98-ec94e3de4012")
 				So(discovered[2].Namespace, ShouldEqual, "default")
-				So(discovered[2].ServiceName, ShouldEqual, "pipeline-comparator")
+				So(discovered[2].ServiceName, ShouldEqual, "kmtest")
 				So(discovered[2].Environment, ShouldEqual, "dev")
+
+				So(discovered[3].Name, ShouldEqual, "default_pipeline-comparator-749f97cb4b-w8w4r_e5f10cd8-fb8a-4ade-b402-9b33f34f017f")
+				So(discovered[3].Namespace, ShouldEqual, "default")
+				So(discovered[3].ServiceName, ShouldEqual, "pipeline-comparator")
+				So(discovered[3].Environment, ShouldEqual, "dev")
 			})
 
 			So(capture, ShouldNotContainSubstring, "Error")

@@ -17,7 +17,8 @@ var (
 	// For: projectcontour_envoy-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
 	//  or  default_chopper-f5b66c6bf-l5sqg_49fa45e4-e70c-4a4e-ac56-1e99cb6d36fb
 	// K8s seems to do all kinds of craziness here. Not clear to me why.
-	podNameRegexp = regexp.MustCompile("(-[a-f0-9]+)?-[a-z0-9]{5}_([a-f0-9-]+){5}$")
+	podNameRegexp = regexp.MustCompile("(-[a-f0-9]+)?(-[a-z0-9]{5})?_([a-f0-9-]+){5}$")
+	// default_kmtest_abe513f2-8a73-46f6-bd98-ec94e3de4012
 )
 
 // A Pod represents all the info we care about for a Kubernetes Pod
