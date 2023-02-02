@@ -49,11 +49,13 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 	var (
 		failed bool
 		err    error
-		tailed *tail.Tail
 	)
 
 	for _, filename := range logFiles {
-		var seekInfo tail.SeekInfo
+		var (
+			seekInfo tail.SeekInfo
+			tailed *tail.Tail
+		)
 
 		if sought := t.cache.Get(filename); sought != nil {
 			log.Infof("  Found existing offset for %s, skipping to position", filename)
@@ -70,7 +72,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 		log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
 		t.LogTails = append(t.LogTails, tailed)
 
-		// Copy into the main channel. These till exit when the tail is stopped.
+		// Copy into the main channel. These will exit when the tail is stopped.
 		go func() {
 			for l := range tailed.Lines {
 				t.localCache[filename] = &l.SeekInfo // Cache locally
