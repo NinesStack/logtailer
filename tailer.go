@@ -66,7 +66,9 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 			ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: &seekInfo,
 		})
 		if err != nil {
+			log.Warnf("Error tailing %s for pod %s: %s", filename, t.Pod.Name, err)
 			failed = true
+			continue
 		}
 
 		log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
@@ -78,7 +80,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 				t.localCache[filename] = &l.SeekInfo // Cache locally
 				t.LogChan <- l
 			}
-			log.Errorf("  Aborting tail on %s for pod %s", filename, t.Pod.Name)
+			log.Infof("  Closing tail on %s for pod %s", filename, t.Pod.Name)
 		}()
 	}
 
