@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/Shimmur/logtailer/cache"
 	"github.com/nxadm/tail"
@@ -28,6 +29,7 @@ type Tailer struct {
 	looper     director.Looper
 	cache      *cache.Cache
 	localCache map[string]*tail.SeekInfo
+	lock       sync.RWMutex
 }
 
 // NewTailer returns a properly configured Tailer for a Pod
@@ -54,7 +56,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 	for _, filename := range logFiles {
 		var (
 			seekInfo tail.SeekInfo
-			tailed *tail.Tail
+			tailed   *tail.Tail
 		)
 
 		if sought := t.cache.Get(filename); sought != nil {
@@ -74,13 +76,13 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 		log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
 		t.LogTails = append(t.LogTails, tailed)
 
-		// Make sure we have some offsets for every filename we track, even if nothing is logged
-		t.localCache[filename] = &tail.SeekInfo{}
-
 		// Copy into the main channel. These will exit when the tail is stopped.
 		go func() {
 			for l := range tailed.Lines {
+				t.lock.Lock()
 				t.localCache[filename] = &l.SeekInfo // Cache locally
+				t.lock.Unlock()
+
 				t.LogChan <- l
 			}
 			log.Infof("  Closing tail on %s for pod %s", filename, t.Pod.Name)
@@ -113,6 +115,8 @@ func (t *Tailer) Run() {
 // FlushOffests writes all the offsets from the localCache into the main cache.
 // This is triggered from the PodTracker.
 func (t *Tailer) FlushOffsets() {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
 	// Write our local cache to the main cache, from which it will be persisted.
 	// Prevents the lock on the main cache from bottlenecking all log flushes.
 	for filename, seekInfo := range t.localCache {
