@@ -78,6 +78,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 				t.localCache[filename] = &l.SeekInfo // Cache locally
 				t.LogChan <- l
 			}
+			log.Errorf("  Aborting tail on %s for pod %s", filename, t.Pod.Name)
 		}()
 	}
 
