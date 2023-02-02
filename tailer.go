@@ -74,6 +74,9 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 		log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
 		t.LogTails = append(t.LogTails, tailed)
 
+		// Make sure we have some offsets for every filename we track, even if nothing is logged
+		t.localCache[filename] = &tail.SeekInfo{}
+
 		// Copy into the main channel. These will exit when the tail is stopped.
 		go func() {
 			for l := range tailed.Lines {
