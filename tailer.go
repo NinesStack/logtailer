@@ -50,7 +50,7 @@ func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 // is invoked. The channels are all unbuffered.
 func (t *Tailer) TailLogs(logFiles []string) error {
 	for _, filename := range logFiles {
-		err := t.tailOneLog(filename)
+		tailed, err := t.tailOneLog(filename)
 
 		if err != nil {
 			// We have to clean up all the tails that started already
@@ -60,6 +60,10 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 			close(t.LogChan)
 			return fmt.Errorf("failed to tail log for %s: %w", t.Pod.Name, err)
 		}
+
+		// Copy into the main channel. These will exit when the tail is
+		// stopped.
+		go t.logPump(filename, tailed)
 	}
 
 	return nil
@@ -67,7 +71,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 
 // tailOneLog will setup a tailer for a logfile and fire off a background log
 // pump, to push logs into the main channel.
-func (t *Tailer) tailOneLog(filename string) error {
+func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 	tailConfig := tail.Config{
 		ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: nil, MustExist: true,
 	}
@@ -81,26 +85,21 @@ func (t *Tailer) tailOneLog(filename string) error {
 	tailed, err := tail.TailFile(filename, tailConfig)
 	if err != nil {
 		log.Warnf("Error tailing %s for pod %s: %s", filename, t.Pod.Name, err)
-		return err
+		return nil, err
 	}
 
 	log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
 	t.LogTails = append(t.LogTails, tailed)
 
-	// Copy into the main channel. These will exit when the tail is
-	// stopped.
-	go t.logPump(filename, tailed)
-
-	return nil
+	return tailed, nil
 }
 
 // logPump runs in a goroutine for each log file, copying logs into the main
 // channel.
 func (t *Tailer) logPump(filename string, tailed *tail.Tail) {
-	fmt.Printf("\n\n%#v\n", tailed)
 	for l := range tailed.Lines {
-		t.localCacheAdd(filename, &(l.SeekInfo))
 		t.LogChan <- l
+		t.localCacheAdd(filename, &(l.SeekInfo))
 	}
 	log.Infof("  Closing tail on %s for pod %s", filename, t.Pod.Name)
 }
