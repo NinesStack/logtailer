@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/Shimmur/logtailer/cache"
 	"github.com/nxadm/tail"
@@ -19,15 +20,17 @@ type LogTailer interface {
 
 // A Tailer watches all the logs for a Pod
 type Tailer struct {
-	LogTails []*tail.Tail
-	Pod      *Pod
-	LogChan  chan *tail.Line
+	LogTails  []*tail.Tail
+	Filenames []string
+	Pod       *Pod
+	LogChan   chan *tail.Line
 
 	logger LogOutput
 
 	looper     director.Looper
 	cache      *cache.Cache
 	localCache map[string]*tail.SeekInfo
+	lock       sync.RWMutex
 }
 
 // NewTailer returns a properly configured Tailer for a Pod
@@ -46,49 +49,59 @@ func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 // the tail are copied into the main LogChan. This is then processed when Run()
 // is invoked. The channels are all unbuffered.
 func (t *Tailer) TailLogs(logFiles []string) error {
-	var (
-		failed bool
-		err    error
-		tailed *tail.Tail
-	)
-
 	for _, filename := range logFiles {
-		var seekInfo tail.SeekInfo
+		tailed, err := t.tailOneLog(filename)
 
-		if sought := t.cache.Get(filename); sought != nil {
-			log.Infof("  Found existing offset for %s, skipping to position", filename)
-			seekInfo = *sought
-		}
-
-		tailed, err = tail.TailFile(filename, tail.Config{
-			ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: &seekInfo,
-		})
 		if err != nil {
-			failed = true
-		}
-
-		log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
-		t.LogTails = append(t.LogTails, tailed)
-
-		// Copy into the main channel. These till exit when the tail is stopped.
-		go func() {
-			for l := range tailed.Lines {
-				t.localCache[filename] = &l.SeekInfo // Cache locally
-				t.LogChan <- l
+			// We have to clean up all the tails that started already
+			for _, tailed := range t.LogTails {
+				_ = tailed.Stop() // Ignore any errors
 			}
-		}()
-	}
-
-	if failed {
-		// We have to clean up all the tails that started already
-		for _, tailed := range t.LogTails {
-			_ = tailed.Stop() // Ignore any errors
+			close(t.LogChan)
+			return fmt.Errorf("failed to tail log for %s: %w", t.Pod.Name, err)
 		}
-		close(t.LogChan)
-		return fmt.Errorf("failed to tail log for %s: %w", t.Pod.Name, err)
+
+		// Copy into the main channel. These will exit when the tail is
+		// stopped.
+		go t.logPump(filename, tailed)
 	}
 
 	return nil
+}
+
+// tailOneLog will setup a tailer for a logfile and fire off a background log
+// pump, to push logs into the main channel.
+func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
+	tailConfig := tail.Config{
+		ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: nil, MustExist: true,
+	}
+
+	// Try to get an existing offset from the main cache
+	if sought := t.cache.Get(filename); sought != nil {
+		log.Infof("  Found existing offset for %s, skipping to position", filename)
+		tailConfig.Location = sought
+	}
+
+	tailed, err := tail.TailFile(filename, tailConfig)
+	if err != nil {
+		log.Warnf("Error tailing %s for pod %s: %s", filename, t.Pod.Name, err)
+		return nil, err
+	}
+
+	log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
+	t.LogTails = append(t.LogTails, tailed)
+
+	return tailed, nil
+}
+
+// logPump runs in a goroutine for each log file, copying logs into the main
+// channel.
+func (t *Tailer) logPump(filename string, tailed *tail.Tail) {
+	for l := range tailed.Lines {
+		t.LogChan <- l
+		t.localCacheAdd(filename, &(l.SeekInfo))
+	}
+	log.Infof("  Closing tail on %s for pod %s", filename, t.Pod.Name)
 }
 
 // Run processes all the logs currently pending, and then writes the current
@@ -105,9 +118,12 @@ func (t *Tailer) Run() {
 // FlushOffests writes all the offsets from the localCache into the main cache.
 // This is triggered from the PodTracker.
 func (t *Tailer) FlushOffsets() {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
 	// Write our local cache to the main cache, from which it will be persisted.
 	// Prevents the lock on the main cache from bottlenecking all log flushes.
 	for filename, seekInfo := range t.localCache {
+		log.Infof("Flushing offsets for %s", filename)
 		t.cache.Add(filename, seekInfo)
 	}
 }
@@ -128,4 +144,11 @@ func (t *Tailer) Stop() {
 		t.cache.Del(filename)
 	}
 	t.looper.Quit()
+}
+
+func (t *Tailer) localCacheAdd(filename string, seekInfo *tail.SeekInfo) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	t.localCache[filename] = seekInfo // Cache locally
 }

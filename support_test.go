@@ -86,13 +86,15 @@ func (m *mockFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	return true, nil
 }
 
-// mockLogOutput implements the LogOutput interfacw
+// mockLogOutput implements the LogOutput interface
 type mockLogOutput struct {
 	LastLogged string
 	WasCalled  bool
+	CallCount  int
 }
 
 func (m *mockLogOutput) Log(line string) {
 	m.WasCalled = true
 	m.LastLogged = line
+	m.CallCount += 1
 }

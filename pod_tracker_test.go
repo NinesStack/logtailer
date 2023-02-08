@@ -201,6 +201,9 @@ func Test_Run(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
+			// Janky but have to wait for the first run
+			time.Sleep(10*time.Millisecond)
+
 			So(tailer.RunWasCalled, ShouldBeTrue)
 		})
 	})
