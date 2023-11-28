@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -68,7 +69,6 @@ func Test_TailLogs(t *testing.T) {
 			go tailer.Run()
 			defer tailer.Stop()
 
-
 			// Nothing should be cached yet
 			So(len(tailer.localCache), ShouldEqual, 0)
 
@@ -81,9 +81,10 @@ func Test_TailLogs(t *testing.T) {
 			}
 
 			// Janky, but we have to wait for the files to flush to the tail
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(300 * time.Millisecond)
 
 			// Now we should know about all of their offsets
+			fmt.Printf("%#v\n", tailer.localCache)
 			So(len(tailer.localCache), ShouldEqual, 3)
 
 			So(logOutput.CallCount, ShouldEqual, 3)

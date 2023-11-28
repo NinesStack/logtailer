@@ -124,7 +124,8 @@ func Test_ShouldTailLogs(t *testing.T) {
 			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
 				func(req *http.Request) (*http.Response, error) {
 					auth = req.Header.Get("Authorization")
-					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations": {"community.com/TailLogs":"true"}}}]}`), nil
+					// We need to return more than pod here
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{}}},{"metadata":{"annotations": {"community.com/TailLogs":"true"}}}]}`), nil
 				},
 			)
 

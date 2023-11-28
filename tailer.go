@@ -73,7 +73,8 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 // pump, to push logs into the main channel.
 func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 	tailConfig := tail.Config{
-		ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: nil, MustExist: true,
+		ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: nil,
+		MustExist: true, Poll: true,
 	}
 
 	// Try to get an existing offset from the main cache

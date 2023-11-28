@@ -125,7 +125,7 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 
 func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	body, err := f.makeRequest(
-		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100&labelSelector=ServiceName%3D" + pod.ServiceName,
+		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + pod.ServiceName,
 	)
 	if err != nil {
 		return false, err
@@ -143,7 +143,13 @@ func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	}
 
 	// If *ANY* of the pods enables logs, we enable for all of them
-	return (pods.Items[0].Metadata.Annotations.CommunityComTailLogs == "true"), nil
+	for _, pod := range pods.Items {
+		if pod.Metadata.Annotations.CommunityComTailLogs == "true" {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // A StubFilter is used when we fail to talk to Kubernetes, e.g. when
