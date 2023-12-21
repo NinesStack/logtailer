@@ -37,9 +37,11 @@ func Test_Run(t *testing.T) {
 		disco := newMockDisco()
 
 		config := &Config{
-			SyslogAddress: "127.0.0.1",
-			TokenLimit:    300,
-			LimitInterval: 1 * time.Minute,
+			SyslogAddress:     "127.0.0.1",
+			TokenLimit:        300,
+			LimitInterval:     1 * time.Minute,
+			LimitSessionTTL:   1 * time.Hour,
+			LimitSessionSweep: 1 * time.Hour,
 		}
 
 		rptr := reporter.NewLimitExceededReporter("", "", "")
@@ -202,7 +204,7 @@ func Test_Run(t *testing.T) {
 			})
 
 			// Janky but have to wait for the first run
-			time.Sleep(10*time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 
 			So(tailer.RunWasCalled, ShouldBeTrue)
 		})

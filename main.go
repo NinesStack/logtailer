@@ -32,8 +32,10 @@ type Config struct {
 	NewRelicAccount string `envconfig:"NEW_RELIC_ACCOUNT"`
 	NewRelicKey     string `envconfig:"NEW_RELIC_LICENSE_KEY"`
 
-	TokenLimit    int           `envconfig:"TOKEN_LIMIT" default:"300"`
-	LimitInterval time.Duration `envconfig:"LIMIT_INTERVAL" default:"1m"`
+	TokenLimit        int           `envconfig:"TOKEN_LIMIT" default:"300"`
+	LimitInterval     time.Duration `envconfig:"LIMIT_INTERVAL" default:"1m"`
+	LimitSessionSweep time.Duration `envconfig:"LIMIT_SESSION_SWEEP_INTERVAL" default:"1h"`
+	LimitSessionTTL   time.Duration `envconfig:"LIMIT_SESSION_TTL_INTERVAL" default:"1h"`
 
 	KubeHost      string        `envconfig:"KUBERNETES_SERVICE_HOST" default:"127.0.0.1"`
 	KubePort      int           `envconfig:"KUBERNETES_SERVICE_PORT" default:"8080"`
@@ -72,7 +74,8 @@ func NewTailerWithUDPSyslog(c *cache.Cache, hostname string,
 		}, config.SyslogAddress)
 
 		// Inject the UDPSyslogger into the RateLimitingLogger
-		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval, "ServiceName", udpLogger)
+		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval,
+			config.LimitSessionSweep, config.LimitSessionTTL, "ServiceName", udpLogger)
 
 		// Wrap the return value from NewTailer as an interface
 		return NewTailer(pod, c, limitingLogger)

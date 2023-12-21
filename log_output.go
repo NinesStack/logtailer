@@ -96,7 +96,8 @@ type RateLimitingLogger struct {
 
 func NewRateLimitingLogger(
 	limitReporter *reporter.LimitExceededReporter, tokenLimit int,
-	reportInterval time.Duration, key string, output LogOutput) *RateLimitingLogger {
+	reportInterval time.Duration, sweepInterval time.Duration,
+	sweepTTLInterval time.Duration, key string, output LogOutput) *RateLimitingLogger {
 
 	// Set up the rate limiter
 	store, err := memorystore.New(&memorystore.Config{
@@ -105,6 +106,12 @@ func NewRateLimitingLogger(
 
 		// Interval until tokens reset.
 		Interval: reportInterval,
+
+		// Interval for garbage collection of stale entries
+		SweepInterval: sweepInterval,
+
+		//  minimum amount of time a session must be inactive before clearing it from the entries
+		SweepMinTTL: sweepTTLInterval,
 	})
 
 	if err != nil {
