@@ -11,6 +11,8 @@ import (
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const (
@@ -96,6 +98,10 @@ func getHostname() string {
 }
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	var config Config
 	err := envconfig.Process("log", &config)
 	if err != nil {
