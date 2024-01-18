@@ -40,8 +40,8 @@ func Test_Run(t *testing.T) {
 			SyslogAddress:     "127.0.0.1",
 			TokenLimit:        300,
 			LimitInterval:     1 * time.Minute,
-			LimitSessionTTL:   1 * time.Hour,
-			LimitSessionSweep: 1 * time.Hour,
+			LimitSessionTTL:   15 * time.Minute,
+			LimitSessionSweep: 15 * time.Minute,
 		}
 
 		rptr := reporter.NewLimitExceededReporter("", "", "")

@@ -36,8 +36,8 @@ type Config struct {
 
 	TokenLimit        int           `envconfig:"TOKEN_LIMIT" default:"300"`
 	LimitInterval     time.Duration `envconfig:"LIMIT_INTERVAL" default:"1m"`
-	LimitSessionSweep time.Duration `envconfig:"LIMIT_SESSION_SWEEP_INTERVAL" default:"1h"`
-	LimitSessionTTL   time.Duration `envconfig:"LIMIT_SESSION_TTL_INTERVAL" default:"1h"`
+	LimitSessionSweep time.Duration `envconfig:"LIMIT_SESSION_SWEEP_INTERVAL" default:"15m"`
+	LimitSessionTTL   time.Duration `envconfig:"LIMIT_SESSION_TTL_INTERVAL" default:"15m"`
 
 	KubeHost      string        `envconfig:"KUBERNETES_SERVICE_HOST" default:"127.0.0.1"`
 	KubePort      int           `envconfig:"KUBERNETES_SERVICE_PORT" default:"8080"`

@@ -53,7 +53,7 @@ func Test_RateLimitingLogger(t *testing.T) {
 		rptr := reporter.NewLimitExceededReporter("", "", "")
 		mockUpstream := &mockLogOutput{}
 		logger := NewRateLimitingLogger(
-			rptr, 1, 1*time.Millisecond, 1*time.Hour, 1*time.Hour, "ServiceName", mockUpstream,
+			rptr, 1, 1*time.Millisecond, 15*time.Minute, 1*time.Minute, "ServiceName", mockUpstream,
 		)
 
 		Convey("can detect when logging has gone too far", func() {
