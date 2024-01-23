@@ -145,9 +145,8 @@ func (t *Tailer) Stop() {
 		t.cache.Del(filename)
 	}
 
-	t.logger.Stop()
-
 	t.looper.Quit()
+	t.logger.Stop()
 }
 
 func (t *Tailer) localCacheAdd(filename string, seekInfo *tail.SeekInfo) {
