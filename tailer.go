@@ -144,6 +144,9 @@ func (t *Tailer) Stop() {
 	for filename, _ := range t.localCache {
 		t.cache.Del(filename)
 	}
+
+	t.logger.Stop()
+
 	t.looper.Quit()
 }
 

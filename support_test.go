@@ -91,10 +91,15 @@ type mockLogOutput struct {
 	LastLogged string
 	WasCalled  bool
 	CallCount  int
+	StopWasCalled bool
 }
 
 func (m *mockLogOutput) Log(line string) {
 	m.WasCalled = true
 	m.LastLogged = line
 	m.CallCount += 1
+}
+
+func (m *mockLogOutput) Stop() {
+	m.StopWasCalled = true
 }
