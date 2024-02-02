@@ -146,6 +146,7 @@ func (t *Tailer) Stop() {
 	}
 
 	t.looper.Quit()
+	close(t.LogChan)
 	t.logger.Stop()
 }
 
