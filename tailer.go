@@ -144,7 +144,10 @@ func (t *Tailer) Stop() {
 	for filename, _ := range t.localCache {
 		t.cache.Del(filename)
 	}
+
 	t.looper.Quit()
+	close(t.LogChan)
+	t.logger.Stop()
 }
 
 func (t *Tailer) localCacheAdd(filename string, seekInfo *tail.SeekInfo) {

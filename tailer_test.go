@@ -89,5 +89,12 @@ func Test_TailLogs(t *testing.T) {
 
 			So(logOutput.CallCount, ShouldEqual, 3)
 		})
+
+		Convey("passes on shutdown message to the log output", func() {
+			go tailer.Run()
+			tailer.Stop()
+
+			So(logOutput.StopWasCalled, ShouldBeTrue)
+		})
 	})
 }

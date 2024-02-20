@@ -15,6 +15,7 @@ import (
 
 type LogOutput interface {
 	Log(line string)
+	Stop()
 }
 
 type UDPSyslogger struct {
@@ -85,6 +86,9 @@ func (sysl *UDPSyslogger) Log(line string) {
 	sysl.syslogger.Info(line)
 }
 
+// Stop would clean up any resources if we needed to manage any
+func (sysl *UDPSyslogger) Stop() { /* noop */ }
+
 // A RateLimitingLogger is a LogOutput that wraps another LogOutput, adding rate limiting
 // capability
 type RateLimitingLogger struct {
@@ -141,4 +145,9 @@ func (logger *RateLimitingLogger) Log(line string) {
 	}
 
 	logger.limitReporter.Incr()
+}
+
+// Stop cleans up our resources on shutdown
+func (logger *RateLimitingLogger) Stop() {
+	logger.limitStore.Close(context.Background())
 }
