@@ -162,5 +162,5 @@ func main() {
 	})
 
 	// Block on the discovery looper for our lifetime
-	podDiscoveryLooper.Wait()
+	podDiscoveryLooper.WaitWithoutError()
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,6 +18,8 @@ type PodTracker struct {
 	disco         Discoverer
 	looper        director.Looper
 	newTailerFunc NewTailerFunc
+
+	tailsLock sync.RWMutex
 }
 
 // NewPodTracker configures a PodTracker for use, assigning the given Looper
@@ -45,68 +49,96 @@ func (t *PodTracker) Run() {
 		newTails := make(map[string]LogTailer, len(t.LogTails))
 
 		for _, pod := range discovered {
+			var ok bool
+			t.withReadLock(func() { _, ok = t.LogTails[pod.Name] })
+
+			// Handle existing/known pods
+			if ok {
+				t.withLock(func() {
+					// Copy it over because we still see this pod
+					newTails[pod.Name] = t.LogTails[pod.Name]
+
+					// Remove from the old list
+					delete(t.LogTails, pod.Name)
+				})
+
+				continue
+			}
+
 			// Handle newly discovered pods
-			if _, ok := t.LogTails[pod.Name]; !ok {
-				log.Infof("new pod --> %s:%s  [%s]", pod.Namespace, pod.ServiceName, pod.Name)
+			log.Infof("new pod --> %s:%s  [%s]", pod.Namespace, pod.ServiceName, pod.Name)
 
-				shouldTail, err := t.Filter.ShouldTailLogs(pod)
-				if err != nil {
-					log.Errorf(
-						"Failed to check filter for pod %s, disabling logging: %s", err, pod.Name,
-					)
-					continue
-				}
+			shouldTail, err := t.Filter.ShouldTailLogs(pod)
+			if err != nil {
+				log.Errorf(
+					"Failed to check filter for pod %s, disabling logging: %s", err, pod.Name,
+				)
+				continue
+			}
 
+			var tailer LogTailer
+
+			if shouldTail {
+				// Find the files and actually tail them
 				logFiles, err := t.disco.LogFiles(pod.Name)
 				if err != nil {
 					log.Warnf("Failed to get logs for pod %s: %s", pod.Name, err)
 					continue
 				}
 
-				// We keep state on these, but empty the list of log files to prevent tailing
-				if !shouldTail {
-					log.Infof("Skipping pod %s because filter says to", pod.Name)
-					logFiles = []string{}
-				}
+				tailer = t.newTailerFunc(pod)
 
-				tailer := t.newTailerFunc(pod)
 				err = tailer.TailLogs(logFiles)
 				if err != nil {
 					log.Warnf("Failed to tail logs for pod %s: %s", pod.Name, err)
 					continue
 				}
 
-				newTails[pod.Name] = tailer
-
-				// Will exit when the looper is stopped, when Stop() is called on the Tailer
-				go tailer.Run()
-
-				continue
+			} else {
+				// We want to keep state on these, so we just use a mock instead
+				log.Infof("Skipping pod %s because filter says to", pod.Name)
+				tailer = &MockTailer{PodTailed: pod}
 			}
 
-			// Copy it over because we still see this pod
-			newTails[pod.Name] = t.LogTails[pod.Name]
+			log.Infof("Adding and running new tailer for pod %s", pod.Name)
+			newTails[pod.Name] = tailer
 
-			// Remove from the old list
-			delete(t.LogTails, pod.Name)
+			// Will exit when the looper is stopped, when Stop() is called on the Tailer
+			tailer.Run()
 		}
 
 		// These Pods were no longer present
-		for podName, tailer := range t.LogTails {
-			log.Infof("drop pod: %s", podName)
+		t.withLock(func() {
+			for podName, tailer := range t.LogTails {
+				log.Infof("drop pod: %s", podName)
 
-			// Do some pod dropping
-			tailer.Stop()
-		}
+				// Do some pod dropping
+				tailer.Stop()
+			}
 
-		t.LogTails = newTails
+			t.LogTails = newTails
+		})
 
 		return nil
 	})
 }
 
 func (t *PodTracker) FlushOffsets() {
-	for _, tailer := range t.LogTails {
-		tailer.FlushOffsets()
-	}
+	t.withReadLock(func() {
+		for _, tailer := range t.LogTails {
+			tailer.FlushOffsets()
+		}
+	})
+}
+
+func (t *PodTracker) withReadLock(fn func()) {
+	t.tailsLock.RLock()
+	fn()
+	t.tailsLock.RUnlock()
+}
+
+func (t *PodTracker) withLock(fn func()) {
+	t.tailsLock.Lock()
+	fn()
+	t.tailsLock.Unlock()
 }

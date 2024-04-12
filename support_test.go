@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -50,22 +51,8 @@ func (d *mockDisco) LogFiles(pod string) ([]string, error) {
 	return d.Logs, nil
 }
 
-// mockTailer implements the LogTailer interface, for testing
-type mockTailer struct {
-	FlushOffsetsWasCalled bool
-	RunWasCalled          bool
-	StopWasCalled         bool
-
-	PodTailed *Pod
-}
-
-func (t *mockTailer) TailLogs(logFiles []string) error { return nil }
-func (t *mockTailer) Run()                             { t.RunWasCalled = true }
-func (t *mockTailer) FlushOffsets()                    { t.FlushOffsetsWasCalled = true }
-func (t *mockTailer) Stop()                            { t.StopWasCalled = true }
-
-// NewMockTailerFunc is injected into a PodTracker get it to use mockTailers
-func NewMockTailerFunc(tailer *mockTailer) NewTailerFunc {
+// NewMockTailerFunc is injected into a PodTracker get it to use MockTailers
+func NewMockTailerFunc(tailer *MockTailer) NewTailerFunc {
 	return func(pod *Pod) LogTailer {
 		tailer.PodTailed = pod
 		return tailer
@@ -88,16 +75,19 @@ func (m *mockFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 
 // mockLogOutput implements the LogOutput interface
 type mockLogOutput struct {
-	LastLogged string
-	WasCalled  bool
-	CallCount  int
+	LastLogged    string
+	WasCalled     bool
+	CallCount     int
 	StopWasCalled bool
+	sync.Mutex
 }
 
 func (m *mockLogOutput) Log(line string) {
+	m.Lock()
 	m.WasCalled = true
 	m.LastLogged = line
 	m.CallCount += 1
+	m.Unlock()
 }
 
 func (m *mockLogOutput) Stop() {

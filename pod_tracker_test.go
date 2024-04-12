@@ -16,7 +16,7 @@ func Test_NewPodTracker(t *testing.T) {
 		looper := director.NewFreeLooper(director.ONCE, make(chan error))
 		disco := newMockDisco()
 
-		tracker := NewPodTracker(looper, disco, NewMockTailerFunc(&mockTailer{}), &mockFilter{})
+		tracker := NewPodTracker(looper, disco, NewMockTailerFunc(&MockTailer{}), &mockFilter{})
 
 		So(tracker.looper, ShouldEqual, looper)
 		So(tracker.disco, ShouldEqual, disco)
@@ -94,9 +94,9 @@ func Test_Run(t *testing.T) {
 			So(capture, ShouldNotContainSubstring, "Waiting for") // This happens if the file isn't found
 			So(len(tracker.LogTails), ShouldEqual, 1)
 
-			// But, there should not be any logfiles tracked
-			activeTails := tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"].(*Tailer)
-			So(len(activeTails.LogTails), ShouldEqual, 0)
+			// But, it should be a mock and not a real tailer
+			_, ok := tracker.LogTails["default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"].(*MockTailer)
+			So(ok, ShouldBeTrue)
 		})
 
 		Convey("continues to track a pod that was already seen", func() {
@@ -189,7 +189,7 @@ func Test_Run(t *testing.T) {
 		})
 
 		Convey("starts the LogTailer properly", func() {
-			tailer := &mockTailer{}
+			tailer := &MockTailer{}
 			tracker := NewPodTracker(looper, disco, NewMockTailerFunc(tailer), &mockFilter{})
 			disco.Pods = []*Pod{
 				&Pod{Name: "default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499"},
@@ -222,16 +222,16 @@ func Test_FlushOffsets(t *testing.T) {
 				fixturesDir + "/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log",
 			}
 
-			mockTailer1 := &mockTailer{}
-			mockTailer2 := &mockTailer{}
+			MockTailer1 := &MockTailer{}
+			MockTailer2 := &MockTailer{}
 
-			tracker := NewPodTracker(looper, disco, NewMockTailerFunc(&mockTailer{}), &mockFilter{}) // We don't use the func in this test
-			tracker.LogTails = map[string]LogTailer{"file1": mockTailer1, "file2": mockTailer2}
+			tracker := NewPodTracker(looper, disco, NewMockTailerFunc(&MockTailer{}), &mockFilter{}) // We don't use the func in this test
+			tracker.LogTails = map[string]LogTailer{"file1": MockTailer1, "file2": MockTailer2}
 
 			tracker.FlushOffsets()
 
-			So(mockTailer1.FlushOffsetsWasCalled, ShouldBeTrue)
-			So(mockTailer2.FlushOffsetsWasCalled, ShouldBeTrue)
+			So(MockTailer1.FlushOffsetsWasCalled, ShouldBeTrue)
+			So(MockTailer2.FlushOffsetsWasCalled, ShouldBeTrue)
 		})
 	})
 }
