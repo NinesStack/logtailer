@@ -1,20 +1,20 @@
-# -- Build Container -------------------------
-FROM quay.io/shimmur/go-build-base:1.18.2 AS builder
+ARG ALPINE_VERSION=3.19
 
-ARG ALPINE_VERSION=3.17
+# ----- Build Container --------
+FROM golang:1.21.4-bullseye AS builder
 
-# Switch workdir, otherwise we end up in /go (default)
+ENV GIT_SSH_COMMAND "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+
+ADD . /build
+
 WORKDIR /build
 
-# Copy everything into build container
-COPY . .
-
-# Build the application
-RUN go build
+RUN git config --global url.ssh://git@github.com/.insteadOf https://github.com/
+RUN --mount=type=ssh make build
 
 # -- Production Container --------------------
 # This needs to be a real OS container because the inotify stuff calls exec
-FROM alpine:3.17
+FROM library/alpine:$ALPINE_VERSION
 RUN apk add --update bind-tools
 
 COPY --from=builder /build/logtailer /logtailer
