@@ -101,7 +101,7 @@ func (d *DirListDiscoverer) LogFiles(podName string) ([]string, error) {
 		}
 
 		// All the *current* log files are named "0.log"
-		if !info.IsDir() && info.Name() == "0.log" {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".log") {
 			logs = append(logs, path)
 		}
 

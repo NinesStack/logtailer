@@ -60,10 +60,11 @@ func Test_TailLogs(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			// Make sure we are tracking more than one file
-			So(len(tailer.LogTails), ShouldEqual, 3)
+			So(len(tailer.LogTails), ShouldEqual, 4)
 			So(tailer.LogTails[0].Filename, ShouldContainSubstring, "chopper/0.log")
-			So(tailer.LogTails[1].Filename, ShouldContainSubstring, "logproxy/0.log")
-			So(tailer.LogTails[2].Filename, ShouldContainSubstring, "vault-init/0.log")
+			So(tailer.LogTails[1].Filename, ShouldContainSubstring, "chopper/1.log")
+			So(tailer.LogTails[2].Filename, ShouldContainSubstring, "logproxy/0.log")
+			So(tailer.LogTails[3].Filename, ShouldContainSubstring, "vault-init/0.log")
 
 			tailer.Run()
 			Reset(tailer.Stop)
@@ -84,12 +85,12 @@ func Test_TailLogs(t *testing.T) {
 
 			// Now we should know about all of their offsets
 			tailer.lock.RLock()
-			So(len(tailer.localCache), ShouldEqual, 3)
+			So(len(tailer.localCache), ShouldEqual, 4)
 			tailer.lock.RUnlock()
 
 			logOutput.Lock()
 			defer logOutput.Unlock()
-			So(logOutput.CallCount, ShouldEqual, 3)
+			So(logOutput.CallCount, ShouldEqual, 4)
 
 		})
 
