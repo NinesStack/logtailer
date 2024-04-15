@@ -6,6 +6,6 @@ if [ -f /vault/.init-env ]; then
 fi
 
 # Resolve the Syslog proxies to an IP
-export SYSLOG_ADDRESS="`dig $LOGHOST | grep 'IN A' | awk '{print $5}' | head -1`:514"
+export SYSLOG_ADDRESS="`dig $LOGHOST +short | grep -v '\.$' | shuf -n 1`:514"
 
 /logtailer

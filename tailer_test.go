@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -66,8 +65,8 @@ func Test_TailLogs(t *testing.T) {
 			So(tailer.LogTails[1].Filename, ShouldContainSubstring, "logproxy/0.log")
 			So(tailer.LogTails[2].Filename, ShouldContainSubstring, "vault-init/0.log")
 
-			go tailer.Run()
-			defer tailer.Stop()
+			tailer.Run()
+			Reset(tailer.Stop)
 
 			// Nothing should be cached yet
 			So(len(tailer.localCache), ShouldEqual, 0)
@@ -84,14 +83,18 @@ func Test_TailLogs(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 
 			// Now we should know about all of their offsets
-			fmt.Printf("%#v\n", tailer.localCache)
+			tailer.lock.RLock()
 			So(len(tailer.localCache), ShouldEqual, 3)
+			tailer.lock.RUnlock()
 
+			logOutput.Lock()
+			defer logOutput.Unlock()
 			So(logOutput.CallCount, ShouldEqual, 3)
+
 		})
 
 		Convey("passes on shutdown message to the log output", func() {
-			go tailer.Run()
+			tailer.Run()
 			tailer.Stop()
 
 			So(logOutput.StopWasCalled, ShouldBeTrue)

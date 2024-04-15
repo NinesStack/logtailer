@@ -20,10 +20,11 @@ type LogTailer interface {
 
 // A Tailer watches all the logs for a Pod
 type Tailer struct {
-	LogTails  []*tail.Tail
-	Filenames []string
-	Pod       *Pod
-	LogChan   chan *tail.Line
+	LogTails     []*tail.Tail
+	Filenames    []string
+	Pod          *Pod
+	LogChan      chan *tail.Line
+	shutdownChan chan struct{}
 
 	logger LogOutput
 
@@ -36,12 +37,13 @@ type Tailer struct {
 // NewTailer returns a properly configured Tailer for a Pod
 func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 	return &Tailer{
-		Pod:        pod,
-		LogChan:    make(chan *tail.Line),
-		looper:     director.NewFreeLooper(director.FOREVER, make(chan error)),
-		cache:      cache,
-		localCache: make(map[string]*tail.SeekInfo, 5),
-		logger:     logger,
+		Pod:          pod,
+		LogChan:      make(chan *tail.Line),
+		shutdownChan: make(chan struct{}),
+		looper:       director.NewFreeLooper(director.FOREVER, make(chan error)),
+		cache:        cache,
+		localCache:   make(map[string]*tail.SeekInfo, 5),
+		logger:       logger,
 	}
 }
 
@@ -57,6 +59,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 			for _, tailed := range t.LogTails {
 				_ = tailed.Stop() // Ignore any errors
 			}
+			close(t.shutdownChan)
 			close(t.LogChan)
 			return fmt.Errorf("failed to tail log for %s: %w", t.Pod.Name, err)
 		}
@@ -99,7 +102,12 @@ func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 // channel.
 func (t *Tailer) logPump(filename string, tailed *tail.Tail) {
 	for l := range tailed.Lines {
-		t.LogChan <- l
+		// Use select block to prevent a possible send on closed channel
+		select {
+		case t.LogChan <- l:
+		case <-t.shutdownChan:
+			close(t.LogChan)
+		}
 		t.localCacheAdd(filename, &(l.SeekInfo))
 	}
 	log.Infof("  Closing tail on %s for pod %s", filename, t.Pod.Name)
@@ -109,6 +117,7 @@ func (t *Tailer) logPump(filename string, tailed *tail.Tail) {
 // seek info for each log to the main cache for persistence.
 func (t *Tailer) Run() {
 	go t.looper.Loop(func() error {
+		log.Infof("Following logs for '%s'", t.Pod.Name)
 		for line := range t.LogChan {
 			t.logger.Log(line.Text)
 		}
@@ -141,12 +150,14 @@ func (t *Tailer) Stop() {
 	}
 
 	// Remove our offsets from the persisted cache
+	t.lock.RLock()
 	for filename, _ := range t.localCache {
 		t.cache.Del(filename)
 	}
+	t.lock.RUnlock()
 
 	t.looper.Quit()
-	close(t.LogChan)
+	close(t.shutdownChan)
 	t.logger.Stop()
 }
 
