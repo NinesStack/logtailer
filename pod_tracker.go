@@ -49,19 +49,19 @@ func (t *PodTracker) Run() {
 		newTails := make(map[string]LogTailer, len(t.LogTails))
 
 		for _, pod := range discovered {
-			var ok bool
-			t.withReadLock(func() { _, ok = t.LogTails[pod.Name] })
-
 			// Handle existing/known pods
-			if ok {
-				t.withLock(func() {
+			var wasKnown bool
+			t.withLock(func() {
+				tailer, ok := t.LogTails[pod.Name]
+
+				if ok {
 					// Copy it over because we still see this pod
-					newTails[pod.Name] = t.LogTails[pod.Name]
+					newTails[pod.Name] = tailer
+					wasKnown = true // Can't continue from in here
+				}
+			})
 
-					// Remove from the old list
-					delete(t.LogTails, pod.Name)
-				})
-
+			if wasKnown {
 				continue
 			}
 
@@ -93,7 +93,6 @@ func (t *PodTracker) Run() {
 					log.Warnf("Failed to tail logs for pod %s: %s", pod.Name, err)
 					continue
 				}
-
 			} else {
 				// We want to keep state on these, so we just use a mock instead
 				log.Infof("Skipping pod %s because filter says to", pod.Name)
@@ -107,16 +106,22 @@ func (t *PodTracker) Run() {
 			tailer.Run()
 		}
 
-		// These Pods were no longer present
+		// Swap the new list with the old list
+		var oldTails map[string]LogTailer
 		t.withLock(func() {
-			for podName, tailer := range t.LogTails {
-				log.Infof("drop pod: %s", podName)
-
-				// Do some pod dropping
-				tailer.Stop()
-			}
-
+			oldTails = t.LogTails
 			t.LogTails = newTails
+		})
+
+		// Iterate over the old list to remove pods no longer present
+		t.withReadLock(func() {
+			for podName, tailer := range oldTails {
+				if _, ok := t.LogTails[podName]; !ok {
+					// Do some pod dropping
+					log.Infof("drop pod: %s", podName)
+					tailer.Stop()
+				}
+			}
 		})
 
 		return nil

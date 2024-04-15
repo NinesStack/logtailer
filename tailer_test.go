@@ -83,7 +83,9 @@ func Test_TailLogs(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 
 			// Now we should know about all of their offsets
+			tailer.lock.RLock()
 			So(len(tailer.localCache), ShouldEqual, 3)
+			tailer.lock.RUnlock()
 
 			logOutput.Lock()
 			defer logOutput.Unlock()

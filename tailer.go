@@ -150,9 +150,11 @@ func (t *Tailer) Stop() {
 	}
 
 	// Remove our offsets from the persisted cache
+	t.lock.RLock()
 	for filename, _ := range t.localCache {
 		t.cache.Del(filename)
 	}
+	t.lock.RUnlock()
 
 	t.looper.Quit()
 	close(t.shutdownChan)
