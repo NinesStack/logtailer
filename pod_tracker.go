@@ -92,6 +92,8 @@ func (t *PodTracker) Run() {
 					continue
 				}
 
+				pod.Logs = logFiles
+
 				tailer = t.newTailerFunc(pod)
 
 				err = tailer.TailLogs(logFiles)
