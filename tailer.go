@@ -20,11 +20,11 @@ type LogTailer interface {
 
 // A Tailer watches all the logs for a Pod
 type Tailer struct {
-	LogTails     []*tail.Tail
+	LogTails     []*tail.Tail `json:"-"`
 	Filenames    []string
 	Pod          *Pod
-	LogChan      chan *tail.Line
-	shutdownChan chan struct{}
+	LogChan      chan *tail.Line `json:"-"`
+	shutdownChan chan struct{}   `json:"-"`
 
 	logger LogOutput
 
