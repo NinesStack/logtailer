@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
 	"sync"
 
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
 )
+
+var startup sync.Once
 
 type NewTailerFunc func(pod *Pod) LogTailer
 
@@ -39,6 +43,8 @@ func NewPodTracker(looper director.Looper, disco Discoverer,
 // Run invokes the looper to poll discovery and then add or remove Pods from
 // tracking. The work of the actual file tailing is done by the Tailers.
 func (t *PodTracker) Run() {
+	startup.Do(t.serveHTTP)
+
 	t.looper.Loop(func() error {
 		discovered, err := t.disco.Discover()
 		if err != nil {
@@ -146,4 +152,29 @@ func (t *PodTracker) withLock(fn func()) {
 	t.tailsLock.Lock()
 	fn()
 	t.tailsLock.Unlock()
+}
+
+func (t *PodTracker) serveHTTP() {
+	go func() {
+		// Set up the route and handler.
+		http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
+			t.tailsLock.RLock()
+			defer t.tailsLock.RUnlock()
+
+			// Set the Content-Type header.
+			w.Header().Set("Content-Type", "application/json")
+
+			err := json.NewEncoder(w).Encode(t.LogTails)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		})
+
+		// Start the server.
+		log.Println("State server starting on :8080...")
+		err := http.ListenAndServe(":8080", nil)
+		if err != nil {
+			log.Error(err.Error())
+		}
+	}()
 }
