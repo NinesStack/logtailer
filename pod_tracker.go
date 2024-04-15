@@ -61,9 +61,24 @@ func (t *PodTracker) Run() {
 				tailer, ok := t.LogTails[pod.Name]
 
 				if ok {
+					wasKnown = true // Can't continue from in here
+
 					// Copy it over because we still see this pod
 					newTails[pod.Name] = tailer
-					wasKnown = true // Can't continue from in here
+
+					// Find all the new files for the pod
+					logFiles, err := t.disco.LogFiles(pod.Name)
+					if err != nil {
+						log.Warnf("Failed to get logs for pod %s: %s", pod.Name, err)
+						return
+					}
+
+					// Update the followed files
+					err = tailer.TailLogs(logFiles)
+					if err != nil {
+						log.Errorf("Failed to tail logs for %s: %s", pod.Name, err)
+						return
+					}
 				}
 			})
 

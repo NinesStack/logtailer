@@ -61,10 +61,22 @@ func Test_TailLogs(t *testing.T) {
 
 			// Make sure we are tracking more than one file
 			So(len(tailer.LogTails), ShouldEqual, 4)
-			So(tailer.LogTails[0].Filename, ShouldContainSubstring, "chopper/0.log")
-			So(tailer.LogTails[1].Filename, ShouldContainSubstring, "chopper/1.log")
-			So(tailer.LogTails[2].Filename, ShouldContainSubstring, "logproxy/0.log")
-			So(tailer.LogTails[3].Filename, ShouldContainSubstring, "vault-init/0.log")
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log"],
+				ShouldNotBeNil,
+			)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/1.log"],
+				ShouldNotBeNil,
+			)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/logproxy/0.log"],
+				ShouldNotBeNil,
+			)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/vault-init/0.log"],
+				ShouldNotBeNil,
+			)
 
 			tailer.Run()
 			Reset(tailer.Stop)
