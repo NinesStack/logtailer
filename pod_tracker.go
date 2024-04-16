@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
 	"sync"
 
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
 )
+
+var startup sync.Once
 
 type NewTailerFunc func(pod *Pod) LogTailer
 
@@ -55,9 +59,24 @@ func (t *PodTracker) Run() {
 				tailer, ok := t.LogTails[pod.Name]
 
 				if ok {
+					wasKnown = true // Can't continue from in here
+
 					// Copy it over because we still see this pod
 					newTails[pod.Name] = tailer
-					wasKnown = true // Can't continue from in here
+
+					// Find all the new files for the pod
+					logFiles, err := t.disco.LogFiles(pod.Name)
+					if err != nil {
+						log.Warnf("Failed to get logs for pod %s: %s", pod.Name, err)
+						return
+					}
+
+					// Update the followed files
+					err = tailer.TailLogs(logFiles)
+					if err != nil {
+						log.Errorf("Failed to tail logs for %s: %s", pod.Name, err)
+						return
+					}
 				}
 			})
 
@@ -85,6 +104,8 @@ func (t *PodTracker) Run() {
 					log.Warnf("Failed to get logs for pod %s: %s", pod.Name, err)
 					continue
 				}
+
+				pod.Logs = logFiles
 
 				tailer = t.newTailerFunc(pod)
 
@@ -146,4 +167,29 @@ func (t *PodTracker) withLock(fn func()) {
 	t.tailsLock.Lock()
 	fn()
 	t.tailsLock.Unlock()
+}
+
+func (t *PodTracker) ServeHTTP() {
+	go func() {
+		// Set up the route and handler.
+		http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
+			t.tailsLock.RLock()
+			defer t.tailsLock.RUnlock()
+
+			// Set the Content-Type header.
+			w.Header().Set("Content-Type", "application/json")
+
+			err := json.NewEncoder(w).Encode(t.LogTails)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		})
+
+		// Start the server.
+		log.Println("State server starting on :8080...")
+		err := http.ListenAndServe(":8080", nil)
+		if err != nil {
+			log.Error(err.Error())
+		}
+	}()
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Shimmur/logtailer/cache"
@@ -92,7 +94,15 @@ func getHostname() string {
 	return hostname
 }
 
-func main() {
+// waitForInterrupt is called to block waiting on an INT or TERM signal
+func waitForInterrupt(signalChan chan os.Signal) {
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	<-signalChan
+
+	log.Info("Caught signal, shutting down")
+}
+
+func configureService() *Config {
 	var config Config
 	err := envconfig.Process("log", &config)
 	if err != nil {
@@ -115,10 +125,15 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	return &config
+}
+
+func main() {
+	config := configureService()
 	var filter DiscoveryFilter
 
 	// Some deps for injection
-	cache := configureCache(&config)
+	cache := configureCache(config)
 	podFilter := NewPodFilter(
 		config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath,
 	)
@@ -141,9 +156,11 @@ func main() {
 	}
 
 	// Set up and run the tracker
-	newTailerFunc := NewTailerWithUDPSyslog(cache, getHostname(), &config, rptr)
+	newTailerFunc := NewTailerWithUDPSyslog(cache, getHostname(), config, rptr)
 	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc, filter)
 	go tracker.Run()
+	// Set up the state server for debugging
+	tracker.ServeHTTP()
 
 	// Run the reporter
 	go rptr.Run()
@@ -161,6 +178,13 @@ func main() {
 		return nil
 	})
 
-	// Block on the discovery looper for our lifetime
+	// Block waiting on signal
+	signalChan := make(chan os.Signal, 1)
+	waitForInterrupt(signalChan)
+	podDiscoveryLooper.Quit()
+	cacheLooper.Quit()
+
+	// Let these shut down properly, including flushing offsets
 	podDiscoveryLooper.WaitWithoutError()
+	cacheLooper.WaitWithoutError()
 }

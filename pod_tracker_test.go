@@ -65,6 +65,7 @@ func Test_Run(t *testing.T) {
 			So(capture, ShouldContainSubstring, "Adding tail on fixtures/pods/default_chopper-f5b66c6bf")
 			So(capture, ShouldNotContainSubstring, "Waiting for") // This happens if the file isn't found
 			So(len(tracker.LogTails), ShouldEqual, 1)
+			So(len(disco.Pods[0].Logs), ShouldEqual, 1)
 		})
 
 		Convey("does not tail the logs for a pod that is filtered", func() {
@@ -202,7 +203,7 @@ func Test_Run(t *testing.T) {
 			})
 
 			// Janky but have to wait for the first run
-			time.Sleep(10*time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 
 			So(tailer.RunWasCalled, ShouldBeTrue)
 		})

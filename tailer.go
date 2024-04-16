@@ -20,11 +20,10 @@ type LogTailer interface {
 
 // A Tailer watches all the logs for a Pod
 type Tailer struct {
-	LogTails     []*tail.Tail
-	Filenames    []string
+	LogTails     map[string]*tail.Tail `json:"-"`
 	Pod          *Pod
-	LogChan      chan *tail.Line
-	shutdownChan chan struct{}
+	LogChan      chan *tail.Line `json:"-"`
+	shutdownChan chan struct{}   `json:"-"`
 
 	logger LogOutput
 
@@ -37,6 +36,7 @@ type Tailer struct {
 // NewTailer returns a properly configured Tailer for a Pod
 func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 	return &Tailer{
+		LogTails:     make(map[string]*tail.Tail),
 		Pod:          pod,
 		LogChan:      make(chan *tail.Line),
 		shutdownChan: make(chan struct{}),
@@ -52,6 +52,12 @@ func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 // is invoked. The channels are all unbuffered.
 func (t *Tailer) TailLogs(logFiles []string) error {
 	for _, filename := range logFiles {
+		// Files we already know about
+		if _, ok := t.LogTails[filename]; ok {
+			continue
+		}
+
+		// Files we didn't know about, add a tail
 		tailed, err := t.tailOneLog(filename)
 
 		if err != nil {
@@ -67,13 +73,40 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 		// Copy into the main channel. These will exit when the tail is
 		// stopped.
 		go t.logPump(filename, tailed)
+		continue
+	}
+
+	var droppedTails []string
+
+	// Clean up files we don't need to tail any more
+OUTER:
+	for existingFname, tail := range t.LogTails {
+		// See if the existing file is in the new list
+		for _, newFname := range logFiles {
+			// It is? Ok, skip
+			if existingFname == newFname {
+				continue OUTER
+			}
+		}
+
+		// It's not in the new files, so stop tailing it
+		err := tail.Stop()
+		if err != nil {
+			log.Errorf("Failed to stop tail for file %s", existingFname)
+		}
+		droppedTails = append(droppedTails, existingFname)
+		log.Infof("  Dropping tail on %s",  existingFname)
+	}
+
+	// Remove them from LogTails map in a separate loop
+	for _, fname := range droppedTails {
+		delete(t.LogTails, fname)
 	}
 
 	return nil
 }
 
-// tailOneLog will setup a tailer for a logfile and fire off a background log
-// pump, to push logs into the main channel.
+// tailOneLog will setup a tailer for a logfile.
 func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 	tailConfig := tail.Config{
 		ReOpen: true, Follow: true, Logger: log.StandardLogger(), Location: nil,
@@ -93,7 +126,7 @@ func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 	}
 
 	log.Infof("  Adding tail on %s for pod %s", filename, t.Pod.Name)
-	t.LogTails = append(t.LogTails, tailed)
+	t.LogTails[filename] = tailed
 
 	return tailed, nil
 }
@@ -133,7 +166,6 @@ func (t *Tailer) FlushOffsets() {
 	// Write our local cache to the main cache, from which it will be persisted.
 	// Prevents the lock on the main cache from bottlenecking all log flushes.
 	for filename, seekInfo := range t.localCache {
-		log.Infof("Flushing offsets for %s", filename)
 		t.cache.Add(filename, seekInfo)
 	}
 }

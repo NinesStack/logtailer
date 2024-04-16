@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,14 +57,29 @@ func Test_TailLogs(t *testing.T) {
 		})
 
 		Convey("opens tails on all the logs and caches them", func() {
-			err := tailer.TailLogs(logFiles)
-			So(err, ShouldBeNil)
+			_ = LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+			})
 
 			// Make sure we are tracking more than one file
-			So(len(tailer.LogTails), ShouldEqual, 3)
-			So(tailer.LogTails[0].Filename, ShouldContainSubstring, "chopper/0.log")
-			So(tailer.LogTails[1].Filename, ShouldContainSubstring, "logproxy/0.log")
-			So(tailer.LogTails[2].Filename, ShouldContainSubstring, "vault-init/0.log")
+			So(len(tailer.LogTails), ShouldEqual, 4)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/0.log"],
+				ShouldNotBeNil,
+			)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/chopper/1.log"],
+				ShouldNotBeNil,
+			)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/logproxy/0.log"],
+				ShouldNotBeNil,
+			)
+			So(
+				tailer.LogTails["fixtures/pods/default_chopper-f5b66c6bf-cgslk_9df92617-0407-470e-8182-a506aa7e0499/vault-init/0.log"],
+				ShouldNotBeNil,
+			)
 
 			tailer.Run()
 			Reset(tailer.Stop)
@@ -84,13 +100,12 @@ func Test_TailLogs(t *testing.T) {
 
 			// Now we should know about all of their offsets
 			tailer.lock.RLock()
-			So(len(tailer.localCache), ShouldEqual, 3)
+			So(len(tailer.localCache), ShouldEqual, 4)
 			tailer.lock.RUnlock()
 
 			logOutput.Lock()
 			defer logOutput.Unlock()
-			So(logOutput.CallCount, ShouldEqual, 3)
-
+			So(logOutput.CallCount, ShouldEqual, 4)
 		})
 
 		Convey("passes on shutdown message to the log output", func() {
@@ -98,6 +113,25 @@ func Test_TailLogs(t *testing.T) {
 			tailer.Stop()
 
 			So(logOutput.StopWasCalled, ShouldBeTrue)
+		})
+
+		Convey("removes logs we're no longer seeing", func() {
+			_ = LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+			})
+
+			So(len(tailer.LogTails), ShouldEqual, 4)
+
+			logFiles = logFiles[1:3]
+			capture := LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+			})
+
+			numberOfDroppedLogs := strings.Count(capture, "Dropping tail")
+			So(numberOfDroppedLogs, ShouldEqual, 2)
+			So(len(tailer.LogTails), ShouldEqual, 2)
 		})
 	})
 }
