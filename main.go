@@ -102,7 +102,7 @@ func waitForInterrupt(signalChan chan os.Signal) {
 	log.Info("Caught signal, shutting down")
 }
 
-func main() {
+func configureService() *Config {
 	var config Config
 	err := envconfig.Process("log", &config)
 	if err != nil {
@@ -125,10 +125,15 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	return &config
+}
+
+func main() {
+	config := configureService()
 	var filter DiscoveryFilter
 
 	// Some deps for injection
-	cache := configureCache(&config)
+	cache := configureCache(config)
 	podFilter := NewPodFilter(
 		config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath,
 	)
@@ -151,7 +156,7 @@ func main() {
 	}
 
 	// Set up and run the tracker
-	newTailerFunc := NewTailerWithUDPSyslog(cache, getHostname(), &config, rptr)
+	newTailerFunc := NewTailerWithUDPSyslog(cache, getHostname(), config, rptr)
 	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc, filter)
 	go tracker.Run()
 	// Set up the state server for debugging
