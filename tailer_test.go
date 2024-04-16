@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,8 +57,10 @@ func Test_TailLogs(t *testing.T) {
 		})
 
 		Convey("opens tails on all the logs and caches them", func() {
-			err := tailer.TailLogs(logFiles)
-			So(err, ShouldBeNil)
+			_ = LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+			})
 
 			// Make sure we are tracking more than one file
 			So(len(tailer.LogTails), ShouldEqual, 4)
@@ -103,7 +106,6 @@ func Test_TailLogs(t *testing.T) {
 			logOutput.Lock()
 			defer logOutput.Unlock()
 			So(logOutput.CallCount, ShouldEqual, 4)
-
 		})
 
 		Convey("passes on shutdown message to the log output", func() {
@@ -111,6 +113,25 @@ func Test_TailLogs(t *testing.T) {
 			tailer.Stop()
 
 			So(logOutput.StopWasCalled, ShouldBeTrue)
+		})
+
+		Convey("removes logs we're no longer seeing", func() {
+			_ = LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+			})
+
+			So(len(tailer.LogTails), ShouldEqual, 4)
+
+			logFiles = logFiles[1:3]
+			capture := LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+			})
+
+			numberOfDroppedLogs := strings.Count(capture, "Dropping tail")
+			So(numberOfDroppedLogs, ShouldEqual, 2)
+			So(len(tailer.LogTails), ShouldEqual, 2)
 		})
 	})
 }

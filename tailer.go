@@ -76,6 +76,8 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 		continue
 	}
 
+	var droppedTails []string
+
 	// Clean up files we don't need to tail any more
 OUTER:
 	for existingFname, tail := range t.LogTails {
@@ -92,6 +94,13 @@ OUTER:
 		if err != nil {
 			log.Errorf("Failed to stop tail for file %s", existingFname)
 		}
+		droppedTails = append(droppedTails, existingFname)
+		log.Infof("  Dropping tail on %s",  existingFname)
+	}
+
+	// Remove them from LogTails map in a separate loop
+	for _, fname := range droppedTails {
+		delete(t.LogTails, fname)
 	}
 
 	return nil
