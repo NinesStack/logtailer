@@ -77,6 +77,8 @@ func (t *PodTracker) Run() {
 						log.Errorf("Failed to tail logs for %s: %s", pod.Name, err)
 						return
 					}
+					// State for debugging
+					pod.Logs = logFiles
 				}
 			})
 
@@ -120,7 +122,10 @@ func (t *PodTracker) Run() {
 				tailer = &MockTailer{PodTailed: pod}
 			}
 
-			log.Infof("Adding and running new tailer for pod %s", pod.Name)
+			if _, ok := tailer.(*MockTailer); !ok {
+				log.Infof("Adding and running new tailer for pod %s", pod.Name)
+			}
+
 			newTails[pod.Name] = tailer
 
 			// Will exit when the looper is stopped, when Stop() is called on the Tailer
