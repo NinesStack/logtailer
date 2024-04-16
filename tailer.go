@@ -157,7 +157,6 @@ func (t *Tailer) FlushOffsets() {
 	// Write our local cache to the main cache, from which it will be persisted.
 	// Prevents the lock on the main cache from bottlenecking all log flushes.
 	for filename, seekInfo := range t.localCache {
-		log.Infof("Flushing offsets for %s", filename)
 		t.cache.Add(filename, seekInfo)
 	}
 }

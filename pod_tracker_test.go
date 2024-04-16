@@ -203,7 +203,7 @@ func Test_Run(t *testing.T) {
 			})
 
 			// Janky but have to wait for the first run
-			time.Sleep(10*time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 
 			So(tailer.RunWasCalled, ShouldBeTrue)
 		})

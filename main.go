@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Shimmur/logtailer/cache"
@@ -92,6 +94,14 @@ func getHostname() string {
 	return hostname
 }
 
+// waitForInterrupt is called to block waiting on an INT or TERM signal
+func waitForInterrupt(signalChan chan os.Signal) {
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	<-signalChan
+
+	log.Info("Caught signal, shutting down")
+}
+
 func main() {
 	var config Config
 	err := envconfig.Process("log", &config)
@@ -144,6 +154,8 @@ func main() {
 	newTailerFunc := NewTailerWithUDPSyslog(cache, getHostname(), &config, rptr)
 	tracker := NewPodTracker(podDiscoveryLooper, disco, newTailerFunc, filter)
 	go tracker.Run()
+	// Set up the state server for debugging
+	tracker.ServeHTTP()
 
 	// Run the reporter
 	go rptr.Run()
@@ -161,6 +173,13 @@ func main() {
 		return nil
 	})
 
-	// Block on the discovery looper for our lifetime
+	// Block waiting on signal
+	signalChan := make(chan os.Signal, 1)
+	waitForInterrupt(signalChan)
+	podDiscoveryLooper.Quit()
+	cacheLooper.Quit()
+
+	// Let these shut down properly, including flushing offsets
 	podDiscoveryLooper.WaitWithoutError()
+	cacheLooper.WaitWithoutError()
 }

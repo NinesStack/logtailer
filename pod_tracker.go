@@ -43,8 +43,6 @@ func NewPodTracker(looper director.Looper, disco Discoverer,
 // Run invokes the looper to poll discovery and then add or remove Pods from
 // tracking. The work of the actual file tailing is done by the Tailers.
 func (t *PodTracker) Run() {
-	startup.Do(t.serveHTTP)
-
 	t.looper.Loop(func() error {
 		discovered, err := t.disco.Discover()
 		if err != nil {
@@ -171,7 +169,7 @@ func (t *PodTracker) withLock(fn func()) {
 	t.tailsLock.Unlock()
 }
 
-func (t *PodTracker) serveHTTP() {
+func (t *PodTracker) ServeHTTP() {
 	go func() {
 		// Set up the route and handler.
 		http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
