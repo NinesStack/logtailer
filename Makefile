@@ -49,13 +49,9 @@ cover: #: Open coverage report in a browser
 .PHONY: docker-build
 docker-build: #: Build the Docker image to deploy
 docker-build:
-	docker buildx build --ssh default \
-		--tag $(APP_NAME):$(APP_VSN)$(DOCKER_IMAGE_TAG_SUFFIX) \
-		--tag $(APP_NAME):latest$(DOCKER_IMAGE_TAG_SUFFIX) . \
-		--load
+	DOCKER_BUILDKIT=1 docker build --no-cache --tag quay.io/shimmur/$(APP_NAME):$(APP_VSN)-local-build --ssh default .
 
 .PHONY: docker-push
-docker-push: #: Push local docker image to registry
+docker-push: #: Push local docker image to quay.io
 docker-push:
-	docker tag $(APP_NAME):$(APP_VSN)$(DOCKER_IMAGE_TAG_SUFFIX) ghcr.io/mozi-app/$(APP_NAME):$(APP_VSN)
-	docker push ghcr.io/mozi-app/$(APP_NAME):$(APP_VSN)
+	docker push quay.io/shimmur/$(APP_NAME):$(APP_VSN)-local-build
