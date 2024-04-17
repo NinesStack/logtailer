@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/Shimmur/logtailer/cache"
@@ -22,8 +23,8 @@ type LogTailer interface {
 type Tailer struct {
 	LogTails     map[string]*tail.Tail `json:"-"`
 	Pod          *Pod
-	LogChan      chan *tail.Line `json:"-"`
-	shutdownChan chan struct{}   `json:"-"`
+	LogChan      chan *LogLine `json:"-"`
+	shutdownChan chan struct{} `json:"-"`
 
 	logger LogOutput
 
@@ -38,13 +39,26 @@ func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 	return &Tailer{
 		LogTails:     make(map[string]*tail.Tail),
 		Pod:          pod,
-		LogChan:      make(chan *tail.Line),
+		LogChan:      make(chan *LogLine),
 		shutdownChan: make(chan struct{}),
 		looper:       director.NewFreeLooper(director.FOREVER, make(chan error)),
 		cache:        cache,
 		localCache:   make(map[string]*tail.SeekInfo, 5),
 		logger:       logger,
 	}
+}
+
+// containerNameFor splits out the filename and grabs the container from the
+// path.  A bit hacky to do this so far down the chain from discovery, but this
+// is the simplest place to do this at this point.
+func containerNameFor(filename string) string {
+	fields := strings.Split(filename, "/")
+	if len(fields) < 2 {
+		// Who knows what this is, but it doesn't contain a container name
+		return "unknown"
+	}
+
+	return fields[len(fields)-2 : len(fields)-1][0]
 }
 
 // TailLogs takes a list of filenames and opens a tail on them. The logs from
@@ -72,7 +86,7 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 
 		// Copy into the main channel. These will exit when the tail is
 		// stopped.
-		go t.logPump(filename, tailed)
+		go t.logPump(filename, containerNameFor(filename), tailed)
 		continue
 	}
 
@@ -95,7 +109,7 @@ OUTER:
 			log.Errorf("Failed to stop tail for file %s", existingFname)
 		}
 		droppedTails = append(droppedTails, existingFname)
-		log.Infof("  Dropping tail on %s",  existingFname)
+		log.Infof("  Dropping tail on %s", existingFname)
 	}
 
 	// Remove them from LogTails map in a separate loop
@@ -133,11 +147,11 @@ func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 
 // logPump runs in a goroutine for each log file, copying logs into the main
 // channel.
-func (t *Tailer) logPump(filename string, tailed *tail.Tail) {
+func (t *Tailer) logPump(filename string, containerName string, tailed *tail.Tail) {
 	for l := range tailed.Lines {
 		// Use select block to prevent a possible send on closed channel
 		select {
-		case t.LogChan <- l:
+		case t.LogChan <- &LogLine{Text: l.Text, Container: containerName}:
 		case <-t.shutdownChan:
 			close(t.LogChan)
 		}
@@ -152,7 +166,7 @@ func (t *Tailer) Run() {
 	go t.looper.Loop(func() error {
 		log.Infof("Following logs for '%s'", t.Pod.Name)
 		for line := range t.LogChan {
-			t.logger.Log(line.Text)
+			t.logger.Log(line)
 		}
 		return nil
 	})
