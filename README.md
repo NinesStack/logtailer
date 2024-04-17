@@ -99,6 +99,13 @@ community.com/TailLogs=true
 `logtailer` will discover those annotations and enable log tailing and
 syslogging.
 
+Rate Limiter Reporting
+----------------------
+
+You can configure `logtailer` to report to New Relic Insights for reporting on
+log rate limiting. This is of course quite limiting for those who are not New
+Relic customers. A more open standard reporter will be forthcoming.
+
 Running Locally for Testing
 ---------------------------
 
