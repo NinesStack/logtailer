@@ -13,8 +13,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type LogLine struct {
+	Text      string // The log line
+	Container string // The container name it came from
+}
+
 type LogOutput interface {
-	Log(line string)
+	Log(line *LogLine)
 	Stop()
 }
 
@@ -43,8 +48,8 @@ func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
 	})
 	syslogger.SetOutput(ioutil.Discard)
 
-	// Add one to the labels length to account for hostname
-	fields := make(log.Fields, len(labels)+1)
+	// Add four to the labels length to account for hostname, etc
+	fields := make(log.Fields, len(labels)+4)
 
 	// Loop through the fields we're supposed to pass, and add them
 	for field, val := range labels {
@@ -57,33 +62,45 @@ func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
 }
 
 // relayLogs will watch a container and send the logs to Syslog
-func (sysl *UDPSyslogger) Log(line string) {
+func (sysl *UDPSyslogger) Log(line *LogLine) {
+	// Log lines all start like:
 	// 2022-12-03T16:09:51.741778906Z stdout F
 
 	// Wasn't a K8s log line!
-	if len(line) < 41 {
+	if len(line.Text) < 41 {
 		return
 	}
 
-	k8sFields := strings.Split(line[0:40], " ")
+	k8sFields := strings.Split(line.Text[0:40], " ")
 	descriptor := k8sFields[1]
+
+	lineTxt := line.Text
 
 	// Strip the K8s logging stuff from the log. Because the timestamp length
 	// changes sometimes, we check this. It's cheaper than a split on the full
 	// log line.
-	if line[39] == ' ' {
-		line = line[40:len(line)]
+	if lineTxt[39] == ' ' {
+		lineTxt = lineTxt[40:len(lineTxt)]
 	} else {
-		line = line[39:len(line)]
+		lineTxt = lineTxt[39:len(lineTxt)]
 	}
 
+	logger := sysl.syslogger.WithField("Container", line.Container)
+
 	// Attempt to detect errors to log (a la sidecar-executor)
-	if descriptor == "stderr" || strings.Contains(strings.ToLower(line), "error") {
-		sysl.syslogger.Error(line)
+	lowerLine := strings.ToLower(lineTxt)
+	if descriptor == "stderr" || strings.Contains(lowerLine, "error") {
+		logger.Error(lineTxt)
 		return
 	}
 
-	sysl.syslogger.Info(line)
+	// Support warning level by line-scraping as well
+	if strings.Contains(lowerLine, "warn") {
+		logger.Warn(lineTxt)
+		return
+	}
+
+	logger.Info(lineTxt)
 }
 
 // Stop would clean up any resources if we needed to manage any
@@ -138,7 +155,7 @@ func (logger *RateLimitingLogger) isRateLimited() bool {
 }
 
 // Log is a pass-through to the downstream LogOutput, but checks rate limiting status
-func (logger *RateLimitingLogger) Log(line string) {
+func (logger *RateLimitingLogger) Log(line *LogLine) {
 	if !logger.isRateLimited() {
 		logger.output.Log(line)
 		return

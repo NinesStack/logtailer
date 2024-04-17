@@ -95,8 +95,19 @@ func Test_TailLogs(t *testing.T) {
 				logF.Close()
 			}
 
-			// Janky, but we have to wait for the files to flush to the tail
-			time.Sleep(300 * time.Millisecond)
+			timeout := time.After(300*time.Millisecond)
+			// We have to wait for the files to flush to the tail
+			for {
+				select {
+				case <-timeout:
+					So("we should have received something", ShouldNotBeEmpty)
+				default: // keep going
+				}
+				time.Sleep(1*time.Millisecond)
+				if logOutput.LastLogged != nil {
+					break
+				}
+			}
 
 			// Now we should know about all of their offsets
 			tailer.lock.RLock()
@@ -132,6 +143,44 @@ func Test_TailLogs(t *testing.T) {
 			numberOfDroppedLogs := strings.Count(capture, "Dropping tail")
 			So(numberOfDroppedLogs, ShouldEqual, 2)
 			So(len(tailer.LogTails), ShouldEqual, 2)
+		})
+
+		Convey("extracts and logs the container name", func() {
+			_ = LogCapture(func() {
+				err := tailer.TailLogs(logFiles)
+				So(err, ShouldBeNil)
+
+				tailer.Run()
+			})
+			Reset(tailer.Stop)
+
+			// Only send on one of the logs, so we can check the resulting container name
+			for _, tail := range tailer.LogTails {
+				if strings.Contains(tail.Filename, "vault-init") {
+					logF, err := os.OpenFile(tail.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+					So(err, ShouldBeNil)
+					logF.WriteString("this is a test message\n")
+					logF.Close()
+				}
+			}
+
+			// We have to wait for the files to flush to the tail
+			timeout := time.After(300*time.Millisecond)
+			for {
+				select {
+				case <-timeout:
+					So("we should have received something", ShouldNotBeEmpty)
+				default: // keep going
+				}
+				time.Sleep(1*time.Millisecond)
+				if logOutput.LastLogged != nil {
+					break
+				}
+			}
+
+			So(logOutput.LastLogged, ShouldNotBeNil)
+			So(logOutput.LastLogged.Text, ShouldEqual, "this is a test message")
+			So(logOutput.LastLogged.Container, ShouldEqual, "vault-init")
 		})
 	})
 }

@@ -75,14 +75,14 @@ func (m *mockFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 
 // mockLogOutput implements the LogOutput interface
 type mockLogOutput struct {
-	LastLogged    string
+	LastLogged    *LogLine
 	WasCalled     bool
 	CallCount     int
 	StopWasCalled bool
 	sync.Mutex
 }
 
-func (m *mockLogOutput) Log(line string) {
+func (m *mockLogOutput) Log(line *LogLine) {
 	m.Lock()
 	m.WasCalled = true
 	m.LastLogged = line
