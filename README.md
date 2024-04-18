@@ -10,6 +10,17 @@ service from degrading logging for everyone else, and you don't want to blow
 your logging budget every time someone mistakenly deploys with debug logging
 enabled.
 
+Downloading
+-----------
+
+The simplest way to get `logtailer` is from the Docker images pushed to
+GitHub packages: https://github.com/NinesStack/logtailer/pkgs/container/logtailer
+
+An example `manifest.yml` for deploying it is included in this source repo.
+
+More Info
+---------
+
 This is an **opinionated** service that is intended to run as a `DaemonSet` on
 Kubernetes. It provides basic syslogging capabilities for services that don't
 support that themselves. It watches logs in `/var/log/pods` and then tails the
