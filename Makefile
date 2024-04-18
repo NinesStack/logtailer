@@ -57,5 +57,5 @@ docker-build:
 .PHONY: docker-push
 docker-push: #: Push local docker image to registry
 docker-push:
-	docker tag $(APP_NAME):$(APP_VSN)$(DOCKER_IMAGE_TAG_SUFFIX) ghcr.io/NinesStack/$(APP_NAME):$(APP_VSN)
-	docker push ghcr.io/NinesStack/$(APP_NAME):$(APP_VSN)
+	docker tag $(APP_NAME):$(APP_VSN)$(DOCKER_IMAGE_TAG_SUFFIX) ghcr.io/ninesstack/$(APP_NAME):$(APP_VSN)
+	docker push ghcr.io/ninesstack/$(APP_NAME):$(APP_VSN)
