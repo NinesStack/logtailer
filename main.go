@@ -74,7 +74,7 @@ func NewTailerWithUDPSyslog(c *cache.Cache, hostname string,
 		}, config.SyslogAddress)
 
 		// Inject the UDPSyslogger into the RateLimitingLogger
-		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval, "ServiceName", udpLogger)
+		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval, pod.ServiceName, udpLogger)
 
 		// Wrap the return value from NewTailer as an interface
 		return NewTailer(pod, c, limitingLogger)
