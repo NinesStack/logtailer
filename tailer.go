@@ -39,7 +39,7 @@ func NewTailer(pod *Pod, cache *cache.Cache, logger LogOutput) *Tailer {
 	return &Tailer{
 		LogTails:     make(map[string]*tail.Tail),
 		Pod:          pod,
-		LogChan:      make(chan *LogLine),
+		LogChan:      make(chan *LogLine, 1000),
 		shutdownChan: make(chan struct{}),
 		looper:       director.NewFreeLooper(director.FOREVER, make(chan error)),
 		cache:        cache,
