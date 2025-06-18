@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
 )
@@ -33,7 +32,18 @@ type LimitExceededReporter struct {
 
 // NewLimitExceededReporter returns a properly configured reporter
 func NewLimitExceededReporter(url, insertKey, accountID string) *LimitExceededReporter {
-	client := cleanhttp.DefaultClient()
+	// Create a custom transport with connection pooling
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  false,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
