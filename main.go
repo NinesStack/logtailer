@@ -13,6 +13,9 @@ import (
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const (
@@ -131,6 +134,16 @@ func configureService() *Config {
 func main() {
 	config := configureService()
 	var filter DiscoveryFilter
+
+	// Maybe enable pprof
+	if config.Debug {
+		go func() {
+			log.Infof("Starting pprof server on :8081")
+			if err := http.ListenAndServe("localhost:8081", nil); err != nil {
+				log.Fatalf("pprof server failed: %v", err)
+			}
+		}()
+	}
 
 	// Some deps for injection
 	cache := configureCache(config)
