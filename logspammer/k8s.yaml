@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logspammer
+  labels:
+    ServiceName: logspammer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logspammer
+  template:
+    metadata:
+      labels:
+        app: logspammer
+        ServiceName: logspammer
+      annotations:
+        community.com/TailLogs: 'true'
+    spec:
+      containers:
+      - name: logspammer
+        image: quay.io/shimmur/logtailer:logspammer-local-234243
+        args:
+        - "--rate=5000"  # 5000 logs per second
+        - "--size=1024"   # 1024 bytes per log line
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m" 
