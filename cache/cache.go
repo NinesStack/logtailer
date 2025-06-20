@@ -4,61 +4,63 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/nxadm/tail"
-	"github.com/patrickmn/go-cache"
 )
 
 // A Cache is a JSON-persisted map that stores seekinfo for all the logfiles we
 // are currently tailing. It is used to prevent re-streaming entire existing
 // logfiles when the service is restarted.
 type Cache struct {
-	store     *cache.Cache
+	lock      sync.RWMutex
+	store     map[string]*tail.SeekInfo
 	storePath string
 }
 
 // NewCache returns a properly configured cache with the initial size provided
 // and a fully-qualified path for file storage.
 func NewCache(size int, storePath string) *Cache {
-	// Create cache with no expiration and no cleanup interval
-	// The size parameter is used as a hint for the initial map capacity
 	return &Cache{
-		store:     cache.New(cache.NoExpiration, 0),
+		store:     make(map[string]*tail.SeekInfo, size),
 		storePath: storePath,
 	}
 }
 
 func (c *Cache) Add(key string, seekInfo *tail.SeekInfo) {
-	c.store.Set(key, seekInfo, cache.NoExpiration)
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.store[key] = seekInfo
 }
 
 func (c *Cache) Get(key string) *tail.SeekInfo {
-	if x, found := c.store.Get(key); found {
-		return x.(*tail.SeekInfo)
-	}
-	return nil
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.store[key]
 }
 
 func (c *Cache) Del(key string) {
-	c.store.Delete(key)
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	delete(c.store, key)
 }
 
 // Load reads the cache from the file back into memory
 func (c *Cache) Load() error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	data, err := os.ReadFile(c.storePath)
 	if err != nil {
 		return fmt.Errorf("failed to load cache from %s: %s", c.storePath, err)
 	}
 
-	var tempStore map[string]*tail.SeekInfo
-	err = json.Unmarshal(data, &tempStore)
+	err = json.Unmarshal(data, &c.store)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal cache from %s: %s", c.storePath, err)
-	}
-
-	// Load all items into the cache
-	for key, seekInfo := range tempStore {
-		c.store.Set(key, seekInfo, cache.NoExpiration)
 	}
 
 	return nil
@@ -66,16 +68,10 @@ func (c *Cache) Load() error {
 
 // Persist stores the cache out to a file
 func (c *Cache) Persist() error {
-	// Get all items from the cache
-	items := c.store.Items()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
-	// Convert to our expected format
-	tempStore := make(map[string]*tail.SeekInfo)
-	for key, item := range items {
-		tempStore[key] = item.Object.(*tail.SeekInfo)
-	}
-
-	data, err := json.Marshal(tempStore)
+	data, err := json.Marshal(c.store)
 	if err != nil {
 		return fmt.Errorf("failed to persist cache to %s: %s", c.storePath, err)
 	}
