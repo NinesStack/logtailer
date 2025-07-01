@@ -95,7 +95,7 @@ func Test_TailLogs(t *testing.T) {
 				logF.Close()
 			}
 
-			timeout := time.After(300*time.Millisecond)
+			timeout := time.After(300 * time.Millisecond)
 			// We have to wait for the files to flush to the tail
 			for {
 				select {
@@ -103,7 +103,7 @@ func Test_TailLogs(t *testing.T) {
 					So("we should have received something", ShouldNotBeEmpty)
 				default: // keep going
 				}
-				time.Sleep(1*time.Millisecond)
+				time.Sleep(1 * time.Millisecond)
 				if logOutput.LastLogged != nil {
 					break
 				}
@@ -165,14 +165,14 @@ func Test_TailLogs(t *testing.T) {
 			}
 
 			// We have to wait for the files to flush to the tail
-			timeout := time.After(300*time.Millisecond)
+			timeout := time.After(300 * time.Millisecond)
 			for {
 				select {
 				case <-timeout:
 					So("we should have received something", ShouldNotBeEmpty)
 				default: // keep going
 				}
-				time.Sleep(1*time.Millisecond)
+				time.Sleep(1 * time.Millisecond)
 				if logOutput.LastLogged != nil {
 					break
 				}

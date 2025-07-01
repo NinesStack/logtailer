@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
+	_ "net/http/pprof"
 )
 
 const (
@@ -177,6 +179,16 @@ func main() {
 		}
 		return nil
 	})
+
+	if config.Debug {
+		log.Info("Staring pprof server on port 8081")
+		go func() {
+			log.Infof("Starting pprof server on :8081")
+			if err := http.ListenAndServe("localhost:8081", nil); err != nil {
+				log.Fatalf("pprof server failed: %v", err)
+			}
+		}()
+	}
 
 	// Block waiting on signal
 	signalChan := make(chan os.Signal, 1)
