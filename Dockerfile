@@ -1,9 +1,9 @@
-ARG ALPINE_VERSION=3.19
+ARG ALPINE_VERSION=3.22
 
 # ----- Build Container --------
-FROM golang:1.21.4-bullseye AS builder
+FROM golang:1.24.4-bullseye AS builder
 
-ENV GIT_SSH_COMMAND "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+ENV GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
 ADD . /build
 
