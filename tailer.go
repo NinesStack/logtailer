@@ -4,12 +4,22 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/Shimmur/logtailer/cache"
 	"github.com/nxadm/tail"
 	director "github.com/relistan/go-director"
 	log "github.com/sirupsen/logrus"
 )
+
+// Global counter for active goroutines (for monitoring)
+var activeGoroutines int64
+
+// GetActiveGoroutineCount returns the current count of active logPump goroutines
+func GetActiveGoroutineCount() int64 {
+	return atomic.LoadInt64(&activeGoroutines)
+}
 
 // LogTailer defines the interface expected by a PodTracker
 type LogTailer interface {
@@ -28,10 +38,14 @@ type Tailer struct {
 
 	logger LogOutput
 
-	looper     director.Looper
-	cache      *cache.Cache
-	localCache map[string]*tail.SeekInfo
-	lock       sync.RWMutex
+	looper             director.Looper
+	cache              *cache.Cache
+	localCache         map[string]*tail.SeekInfo
+	lock               sync.RWMutex
+	logChanClosed      int32          // atomic flag to prevent double channel close
+	shutdownChanClosed int32          // atomic flag to prevent double shutdown channel close
+	stopCalled         int32          // atomic flag to prevent multiple Stop() calls
+	pumpWg             sync.WaitGroup // tracks active logPump goroutines
 }
 
 // NewTailer returns a properly configured Tailer for a Pod
@@ -80,13 +94,20 @@ func (t *Tailer) TailLogs(logFiles []string) error {
 				_ = tailed.Stop() // Ignore any errors
 			}
 			close(t.shutdownChan)
-			close(t.LogChan)
+			// Close the channel only once using atomic operation
+			if atomic.CompareAndSwapInt32(&t.logChanClosed, 0, 1) {
+				close(t.LogChan)
+			}
 			return fmt.Errorf("failed to tail log for %s: %w", t.Pod.Name, err)
 		}
 
 		// Copy into the main channel. These will exit when the tail is
 		// stopped.
-		go t.logPump(filename, containerNameFor(filename), tailed)
+		t.pumpWg.Add(1)
+		go func(fname string, containerName string, tail *tail.Tail) {
+			defer t.pumpWg.Done()
+			t.logPump(fname, containerName, tail)
+		}(filename, containerNameFor(filename), tailed)
 		continue
 	}
 
@@ -148,15 +169,31 @@ func (t *Tailer) tailOneLog(filename string) (*tail.Tail, error) {
 // logPump runs in a goroutine for each log file, copying logs into the main
 // channel.
 func (t *Tailer) logPump(filename string, containerName string, tailed *tail.Tail) {
+	atomic.AddInt64(&activeGoroutines, 1)
+	defer atomic.AddInt64(&activeGoroutines, -1)
+	defer log.Debugf("logPump goroutine exiting for %s", filename)
+
 	for l := range tailed.Lines {
-		// Use select block to prevent a possible send on closed channel
+		// Use select block with timeout to prevent blocking
 		select {
 		case t.LogChan <- &LogLine{Text: l.Text, Container: containerName}:
+			// Successfully sent
 		case <-t.shutdownChan:
-			close(t.LogChan)
+			// Shutdown requested, exit immediately
+			return
+		case <-time.After(5 * time.Second):
+			// Timeout sending log, drop the line and continue
+			log.Warnf("Timeout sending log for %s, dropping line", filename)
+			continue
 		}
 		t.localCacheAdd(filename, &(l.SeekInfo))
 	}
+
+	// Close the channel only once using atomic operation
+	if atomic.CompareAndSwapInt32(&t.logChanClosed, 0, 1) {
+		close(t.LogChan)
+	}
+
 	log.Infof("  Closing tail on %s for pod %s", filename, t.Pod.Name)
 }
 
@@ -185,14 +222,37 @@ func (t *Tailer) FlushOffsets() {
 }
 
 func (t *Tailer) Stop() {
+	// Prevent multiple Stop() calls
+	if !atomic.CompareAndSwapInt32(&t.stopCalled, 0, 1) {
+		return // Stop already called, skip
+	}
+
+	// Signal shutdown first to all goroutines (prevent double close)
+	if atomic.CompareAndSwapInt32(&t.shutdownChanClosed, 0, 1) {
+		close(t.shutdownChan)
+	}
+
+	// Stop all tails
 	for _, entry := range t.LogTails {
 		err := entry.Stop()
 		if err != nil {
 			log.Errorf("Failed to stop tail for pod %s: %s", t.Pod.Name, err)
 		}
-
-		// Remove any inotify watches
 		entry.Cleanup()
+	}
+
+	// Wait for all logPump goroutines to exit (with timeout)
+	done := make(chan struct{})
+	go func() {
+		t.pumpWg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Infof("All goroutines stopped for pod %s", t.Pod.Name)
+	case <-time.After(10 * time.Second):
+		log.Warnf("Timeout waiting for goroutines to stop for pod %s", t.Pod.Name)
 	}
 
 	// Remove our offsets from the persisted cache
@@ -203,7 +263,6 @@ func (t *Tailer) Stop() {
 	t.lock.RUnlock()
 
 	t.looper.Quit()
-	close(t.shutdownChan)
 	t.logger.Stop()
 }
 
