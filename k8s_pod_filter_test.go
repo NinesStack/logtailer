@@ -12,11 +12,11 @@ import (
 
 var credsPath = "fixtures/discovery"
 
-func Test_NewPodFilter(t *testing.T) {
-	Convey("NewPodFilter()", t, func() {
+func Test_NewAnnotationPodFilter(t *testing.T) {
+	Convey("NewAnnotationPodFilter()", t, func() {
 
 		Convey("returns a properly configured struct", func() {
-			filter := NewPodFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath, false)
+			filter := NewAnnotationPodFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath)
 
 			So(filter, ShouldNotBeNil)
 			So(filter.Timeout, ShouldEqual, 10*time.Millisecond)
@@ -27,10 +27,10 @@ func Test_NewPodFilter(t *testing.T) {
 		})
 
 		Convey("logs when it can't read the token", func() {
-			var filter *PodFilter
+			var filter *AnnotationPodFilter
 
 			capture := LogCapture(func() {
-				filter = NewPodFilter("beowulf.example.com", 443, 10*time.Millisecond, "/tmp/does-not-exist", false)
+				filter = NewAnnotationPodFilter("beowulf.example.com", 443, 10*time.Millisecond, "/tmp/does-not-exist")
 			})
 
 			So(filter, ShouldBeNil)
@@ -38,10 +38,10 @@ func Test_NewPodFilter(t *testing.T) {
 		})
 
 		Convey("logs when it can't read the CA.crt", func() {
-			var filter *PodFilter
+			var filter *AnnotationPodFilter
 
 			capture := LogCapture(func() {
-				filter = NewPodFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath+"/bad-fixture", true)
+				filter = NewAnnotationPodFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath+"/bad-fixture")
 			})
 
 			So(filter, ShouldNotBeNil)
@@ -50,7 +50,6 @@ func Test_NewPodFilter(t *testing.T) {
 			So(filter.Timeout, ShouldEqual, 10*time.Millisecond)
 			So(filter.KubeHost, ShouldEqual, "beowulf.example.com")
 			So(filter.KubePort, ShouldEqual, 443)
-			So(filter.TailAll, ShouldEqual, true)
 			So(filter.token, ShouldContainSubstring, "this would be a token")
 			So(filter.client, ShouldNotBeNil)
 		})
@@ -61,7 +60,7 @@ func Test_makeRequest(t *testing.T) {
 	Convey("makeRequest()", t, func() {
 		Reset(func() { httpmock.DeactivateAndReset() })
 
-		filter := NewPodFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath, false)
+		filter := NewAnnotationPodFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath)
 		httpmock.ActivateNonDefault(filter.client)
 
 		Convey("makes a request with the right headers and auth", func() {
@@ -117,7 +116,7 @@ func Test_ShouldTailLogs(t *testing.T) {
 	Convey("ShouldTailLogs()", t, func() {
 		Reset(func() { httpmock.DeactivateAndReset() })
 
-		filter := NewPodFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath, false)
+		filter := NewAnnotationPodFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath)
 		httpmock.ActivateNonDefault(filter.client)
 
 		Convey("makes a request with the right headers and auth", func() {
@@ -144,10 +143,55 @@ func Test_ShouldTailLogs(t *testing.T) {
 			So(shouldTail, ShouldBeTrue)
 		})
 
-		Convey("in TailAll mode returns true by default", func() {
-			filter := NewPodFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath, true)
-			httpmock.ActivateNonDefault(filter.client)
+		Convey("returns false when annotation is not set", func() {
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{}}}]}`), nil
+				},
+			)
 
+			pod := &Pod{
+				Name:        "awesome-pod",
+				ServiceName: "awesome-pod",
+				Namespace:   "the-awesome-place",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeFalse)
+		})
+	})
+}
+
+func Test_NewTailAllFilter(t *testing.T) {
+	Convey("NewTailAllFilter()", t, func() {
+
+		Convey("returns a properly configured struct", func() {
+			filter := NewTailAllFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath)
+
+			So(filter, ShouldNotBeNil)
+			So(filter.AnnotationPodFilter, ShouldNotBeNil)
+			So(filter.AnnotationPodFilter.Timeout, ShouldEqual, 10*time.Millisecond)
+			So(filter.AnnotationPodFilter.KubeHost, ShouldEqual, "beowulf.example.com")
+			So(filter.AnnotationPodFilter.KubePort, ShouldEqual, 443)
+		})
+
+		Convey("returns nil when underlying filter fails", func() {
+			filter := NewTailAllFilter("beowulf.example.com", 443, 10*time.Millisecond, "/tmp/does-not-exist")
+
+			So(filter, ShouldBeNil)
+		})
+	})
+}
+
+func Test_TailAllFilter_ShouldTailLogs(t *testing.T) {
+	Convey("TailAllFilter.ShouldTailLogs()", t, func() {
+		Reset(func() { httpmock.DeactivateAndReset() })
+
+		filter := NewTailAllFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath)
+		httpmock.ActivateNonDefault(filter.client)
+
+		Convey("returns true by default when no annotation is set", func() {
 			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
 				func(req *http.Request) (*http.Response, error) {
 					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{}}}]}`), nil
@@ -165,10 +209,7 @@ func Test_ShouldTailLogs(t *testing.T) {
 			So(shouldTail, ShouldBeTrue)
 		})
 
-		Convey("in TailAll mode respects taillogs=false", func() {
-			filter := NewPodFilter("beowulf.example.com", 80, 10*time.Millisecond, credsPath, true)
-			httpmock.ActivateNonDefault(filter.client)
-
+		Convey("respects community.com/TailLogs=false annotation", func() {
 			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
 				func(req *http.Request) (*http.Response, error) {
 					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{"community.com/TailLogs":"false"}}}]}`), nil
@@ -184,6 +225,71 @@ func Test_ShouldTailLogs(t *testing.T) {
 			shouldTail, err := filter.ShouldTailLogs(pod)
 			So(err, ShouldBeNil)
 			So(shouldTail, ShouldBeFalse)
+		})
+
+		Convey("ignores community.com/TailLogs=true annotation (still returns true)", func() {
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{"community.com/TailLogs":"true"}}}]}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "awesome-pod",
+				ServiceName: "awesome-pod",
+				Namespace:   "the-awesome-place",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeTrue)
+		})
+
+		Convey("returns true when no pods found (unknown pod)", func() {
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/the-awesome-place/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					return httpmock.NewStringResponse(200, `{"items":[]}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "unknown-pod",
+				ServiceName: "unknown-pod",
+				Namespace:   "the-awesome-place",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeTrue)
+		})
+	})
+}
+
+func Test_DiscoveryFilter_Interface(t *testing.T) {
+	Convey("DiscoveryFilter interface", t, func() {
+
+		Convey("AnnotationPodFilter implements DiscoveryFilter", func() {
+			var filter DiscoveryFilter
+			filter = NewAnnotationPodFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath)
+
+			So(filter, ShouldNotBeNil)
+			So(filter, ShouldImplement, (*DiscoveryFilter)(nil))
+		})
+
+		Convey("TailAllFilter implements DiscoveryFilter", func() {
+			var filter DiscoveryFilter
+			filter = NewTailAllFilter("beowulf.example.com", 443, 10*time.Millisecond, credsPath)
+
+			So(filter, ShouldNotBeNil)
+			So(filter, ShouldImplement, (*DiscoveryFilter)(nil))
+		})
+
+		Convey("StubFilter implements DiscoveryFilter", func() {
+			var filter DiscoveryFilter
+			filter = &StubFilter{TailAll: false}
+
+			So(filter, ShouldNotBeNil)
+			So(filter, ShouldImplement, (*DiscoveryFilter)(nil))
 		})
 	})
 }

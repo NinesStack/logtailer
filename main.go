@@ -138,9 +138,6 @@ func main() {
 
 	// Some deps for injection
 	cache := configureCache(config)
-	podFilter := NewPodFilter(
-		config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath, config.TailAll,
-	)
 	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
 	rptr := reporter.NewLimitExceededReporter(
 		NewRelicBaseURL, config.NewRelicKey, config.NewRelicAccount,
@@ -151,12 +148,27 @@ func main() {
 	cacheLooper := director.NewTimedLooper(
 		director.FOREVER, config.CacheFlushInterval, make(chan error))
 
-	// In the event our filter can't find the right creds, etc, we fail open
-	if podFilter != nil {
-		filter = podFilter
+	// Choose the appropriate filter implementation
+	if config.TailAll {
+		tailAllFilter := NewTailAllFilter(
+			config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath,
+		)
+		if tailAllFilter != nil {
+			filter = tailAllFilter
+		} else {
+			log.Warn("Failed to configure TailAll filter, proceeding anyway using stub...")
+			filter = &StubFilter{TailAll: true}
+		}
 	} else {
-		log.Warn("Failed to configure filter, proceeding anyway using stub...")
-		filter = &StubFilter{TailAll: config.TailAll}
+		annotationFilter := NewAnnotationPodFilter(
+			config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath,
+		)
+		if annotationFilter != nil {
+			filter = annotationFilter
+		} else {
+			log.Warn("Failed to configure Annotation filter, proceeding anyway using stub...")
+			filter = &StubFilter{TailAll: false}
+		}
 	}
 
 	// Set up and run the tracker

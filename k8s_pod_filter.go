@@ -27,26 +27,23 @@ type K8sPodsMetadata struct {
 	} `json:"items"`
 }
 
-// A PodFilter calls out to the Kubernetes API and determines if annotations
+// An AnnotationPodFilter calls out to the Kubernetes API and determines if annotations
 // are present on a pod that would enable us to track logs for that pod.
-type PodFilter struct {
+type AnnotationPodFilter struct {
 	Timeout time.Duration
 
 	KubeHost string
 	KubePort int
 
-	TailAll bool
-
 	token  string
 	client *http.Client
 }
 
-func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPath string, tailAll bool) *PodFilter {
-	f := &PodFilter{
+func NewAnnotationPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPath string) *AnnotationPodFilter {
+	f := &AnnotationPodFilter{
 		Timeout:  timeout,
 		KubeHost: kubeHost,
 		KubePort: kubePort,
-		TailAll:  tailAll,
 	}
 	// Cache the secret from the file
 	data, err := ioutil.ReadFile(credsPath + "/token")
@@ -87,7 +84,7 @@ func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPat
 	return f
 }
 
-func (f *PodFilter) makeRequest(path string) ([]byte, error) {
+func (f *AnnotationPodFilter) makeRequest(path string) ([]byte, error) {
 	var scheme = "http"
 	if f.KubePort == 443 {
 		scheme = "https"
@@ -126,39 +123,7 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 	return body, nil
 }
 
-func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
-	// If TailAll mode is enabled, check for explicit opt-out
-	if f.TailAll {
-		body, err := f.makeRequest(
-			"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + pod.ServiceName,
-		)
-		if err != nil {
-			return false, err
-		}
-
-		var pods K8sPodsMetadata
-		err = json.Unmarshal(body, &pods)
-		if err != nil {
-			return false, fmt.Errorf("unable to decode response from K8s: %s", err)
-		}
-
-		// We don't somehow know about this pod (yet), default to tail in TailAll mode
-		if len(pods.Items) < 1 {
-			return true, nil
-		}
-
-		// If *ANY* of the pods explicitly disables logs, we disable for all of them
-		for _, pod := range pods.Items {
-			if pod.Metadata.Annotations.CommunityComTailLogs == "false" {
-				return false, nil
-			}
-		}
-
-		// Default to tail in TailAll mode
-		return true, nil
-	}
-
-	// Original behavior: opt-in mode
+func (f *AnnotationPodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	body, err := f.makeRequest(
 		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + pod.ServiceName,
 	)
@@ -185,6 +150,49 @@ func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// A TailAllFilter reuses AnnotationPodFilter but inverts the logic - tail all pods except those with TailLogs=false
+type TailAllFilter struct {
+	*AnnotationPodFilter
+}
+
+func NewTailAllFilter(kubeHost string, kubePort int, timeout time.Duration, credsPath string) *TailAllFilter {
+	annotationFilter := NewAnnotationPodFilter(kubeHost, kubePort, timeout, credsPath)
+	if annotationFilter == nil {
+		return nil
+	}
+	return &TailAllFilter{AnnotationPodFilter: annotationFilter}
+}
+
+func (f *TailAllFilter) ShouldTailLogs(pod *Pod) (bool, error) {
+	body, err := f.makeRequest(
+		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + pod.ServiceName,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	var pods K8sPodsMetadata
+	err = json.Unmarshal(body, &pods)
+	if err != nil {
+		return false, fmt.Errorf("unable to decode response from K8s: %s", err)
+	}
+
+	// Default to tail if we don't know about this pod
+	if len(pods.Items) < 1 {
+		return true, nil
+	}
+
+	// If any pod explicitly disables logs, disable for all
+	for _, pod := range pods.Items {
+		if pod.Metadata.Annotations.CommunityComTailLogs == "false" {
+			return false, nil
+		}
+	}
+
+	// Default to tail
+	return true, nil
 }
 
 // A StubFilter is used when we fail to talk to Kubernetes, e.g. when
