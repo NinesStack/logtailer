@@ -160,6 +160,77 @@ func Test_ShouldTailLogs(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(shouldTail, ShouldBeFalse)
 		})
+
+		Convey("handles ServiceName with hyphens by converting to underscores", func() {
+			var requestedURL string
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURL = req.URL.String()
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{"community.com/TailLogs":"true"}}}]}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "default_zapier-integration-c7fdf5784-rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b",
+				ServiceName: "zapier-integration",
+				Namespace:   "default",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeTrue)
+			So(requestedURL, ShouldContainSubstring, "ServiceName%3Dzapier_integration")
+		})
+
+		Convey("handles ServiceName with underscores correctly", func() {
+			var requestedURL string
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURL = req.URL.String()
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{"community.com/TailLogs":"true"}}}]}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "default_zapier_integration_c7fdf5784_rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b",
+				ServiceName: "zapier_integration",
+				Namespace:   "default",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeTrue)
+			So(requestedURL, ShouldContainSubstring, "ServiceName%3Dzapier_integration")
+		})
+
+		Convey("falls back to direct pod query when ServiceName query returns no results", func() {
+			var requestedURLs []string
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods\\?.*ServiceName.*",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURLs = append(requestedURLs, req.URL.String())
+					return httpmock.NewStringResponse(200, `{"items":[]}`), nil
+				},
+			)
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods/zapier-integration-c7fdf5784-rlx4x$",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURLs = append(requestedURLs, req.URL.String())
+					return httpmock.NewStringResponse(200, `{"metadata":{"annotations":{"community.com/TailLogs":"true"}}}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "default_zapier-integration-c7fdf5784-rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b",
+				ServiceName: "zapier-integration",
+				Namespace:   "default",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeTrue)
+			So(len(requestedURLs), ShouldEqual, 2)
+			So(requestedURLs[0], ShouldContainSubstring, "ServiceName%3Dzapier_integration")
+			So(requestedURLs[1], ShouldContainSubstring, "/pods/zapier-integration-c7fdf5784-rlx4x")
+		})
 	})
 }
 
@@ -262,6 +333,77 @@ func Test_TailAllFilter_ShouldTailLogs(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(shouldTail, ShouldBeTrue)
 		})
+
+		Convey("handles ServiceName with hyphens by converting to underscores", func() {
+			var requestedURL string
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURL = req.URL.String()
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{"community.com/TailLogs":"false"}}}]}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "default_zapier-integration-c7fdf5784-rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b",
+				ServiceName: "zapier-integration",
+				Namespace:   "default",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeFalse)
+			So(requestedURL, ShouldContainSubstring, "ServiceName%3Dzapier_integration")
+		})
+
+		Convey("handles ServiceName with underscores correctly", func() {
+			var requestedURL string
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods.*",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURL = req.URL.String()
+					return httpmock.NewStringResponse(200, `{"items":[{"metadata":{"annotations":{"community.com/TailLogs":"false"}}}]}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "default_zapier_integration_c7fdf5784_rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b",
+				ServiceName: "zapier_integration",
+				Namespace:   "default",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeFalse)
+			So(requestedURL, ShouldContainSubstring, "ServiceName%3Dzapier_integration")
+		})
+
+		Convey("falls back to direct pod query when ServiceName query returns no results", func() {
+			var requestedURLs []string
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods\\?.*ServiceName.*",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURLs = append(requestedURLs, req.URL.String())
+					return httpmock.NewStringResponse(200, `{"items":[]}`), nil
+				},
+			)
+			httpmock.RegisterResponder("GET", "=~http://beowulf.example.com:80/api/v1/namespaces/default/pods/zapier-integration-c7fdf5784-rlx4x$",
+				func(req *http.Request) (*http.Response, error) {
+					requestedURLs = append(requestedURLs, req.URL.String())
+					return httpmock.NewStringResponse(200, `{"metadata":{"annotations":{"community.com/TailLogs":"false"}}}`), nil
+				},
+			)
+
+			pod := &Pod{
+				Name:        "default_zapier-integration-c7fdf5784-rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b",
+				ServiceName: "zapier-integration",
+				Namespace:   "default",
+			}
+
+			shouldTail, err := filter.ShouldTailLogs(pod)
+			So(err, ShouldBeNil)
+			So(shouldTail, ShouldBeFalse)
+			So(len(requestedURLs), ShouldEqual, 2)
+			So(requestedURLs[0], ShouldContainSubstring, "ServiceName%3Dzapier_integration")
+			So(requestedURLs[1], ShouldContainSubstring, "/pods/zapier-integration-c7fdf5784-rlx4x")
+		})
 	})
 }
 
@@ -290,6 +432,34 @@ func Test_DiscoveryFilter_Interface(t *testing.T) {
 
 			So(filter, ShouldNotBeNil)
 			So(filter, ShouldImplement, (*DiscoveryFilter)(nil))
+		})
+	})
+}
+
+func Test_extractPodName(t *testing.T) {
+	Convey("extractPodName()", t, func() {
+		Convey("extracts pod name from directory with namespace and UUID", func() {
+			dirName := "default_zapier-integration-c7fdf5784-rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b"
+			result := extractPodName(dirName)
+			So(result, ShouldEqual, "zapier-integration-c7fdf5784-rlx4x")
+		})
+
+		Convey("extracts pod name from directory with different namespace", func() {
+			dirName := "kube-system_coredns-558bd4d5db-abc123_12345678-1234-1234-1234-123456789abc"
+			result := extractPodName(dirName)
+			So(result, ShouldEqual, "coredns-558bd4d5db-abc123")
+		})
+
+		Convey("handles pod name without hyphens", func() {
+			dirName := "default_redis_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b"
+			result := extractPodName(dirName)
+			So(result, ShouldEqual, "redis")
+		})
+
+		Convey("handles single segment after first underscore", func() {
+			dirName := "namespace_podname_uuid"
+			result := extractPodName(dirName)
+			So(result, ShouldEqual, "podname")
 		})
 	})
 }

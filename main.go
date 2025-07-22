@@ -8,13 +8,14 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/Shimmur/logtailer/cache"
 	"github.com/Shimmur/logtailer/reporter"
 	"github.com/kelseyhightower/envconfig"
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
-	_ "net/http/pprof"
 )
 
 const (
@@ -155,6 +156,7 @@ func main() {
 		)
 		if tailAllFilter != nil {
 			filter = tailAllFilter
+			log.Info("Staring in tail all mode, here be dragons")
 		} else {
 			log.Warn("Failed to configure TailAll filter, proceeding anyway using stub...")
 			filter = &StubFilter{TailAll: true}

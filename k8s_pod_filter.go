@@ -123,9 +123,28 @@ func (f *AnnotationPodFilter) makeRequest(path string) ([]byte, error) {
 	return body, nil
 }
 
+// extractPodName extracts the Kubernetes pod name from the directory name
+// e.g., "default_zapier-integration-c7fdf5784-rlx4x_f3a8f5d2-a2ed-48d3-9753-e661919d6f7b"
+// -> "zapier-integration-c7fdf5784-rlx4x"
+func extractPodName(dirName string) string {
+	// Remove the namespace prefix
+	if idx := strings.Index(dirName, "_"); idx != -1 {
+		dirName = dirName[idx+1:]
+	}
+
+	// Remove the UUID suffix (everything after the last underscore)
+	if idx := strings.LastIndex(dirName, "_"); idx != -1 {
+		dirName = dirName[:idx]
+	}
+
+	return dirName
+}
+
 func (f *AnnotationPodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
+	// Try querying by ServiceName first (with underscore version)
+	serviceNameLabel := strings.Replace(pod.ServiceName, "-", "_", -1)
 	body, err := f.makeRequest(
-		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + pod.ServiceName,
+		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + serviceNameLabel,
 	)
 	if err != nil {
 		return false, err
@@ -137,14 +156,36 @@ func (f *AnnotationPodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 		return false, fmt.Errorf("unable to decode response from K8s: %s", err)
 	}
 
-	// We don't somehow know about this pod (yet)
+	// If no pods found by ServiceName, try querying the specific pod by name
 	if len(pods.Items) < 1 {
+		body, err = f.makeRequest(
+			"/api/v1/namespaces/" + pod.Namespace + "/pods/" + extractPodName(pod.Name),
+		)
+		if err != nil {
+			return false, err
+		}
+
+		var singlePod struct {
+			Metadata struct {
+				Annotations struct {
+					CommunityComTailLogs string `json:"community.com/TailLogs"`
+				} `json:"annotations"`
+			} `json:"metadata"`
+		}
+		err = json.Unmarshal(body, &singlePod)
+		if err != nil {
+			return false, fmt.Errorf("unable to decode response from K8s: %s", err)
+		}
+
+		if singlePod.Metadata.Annotations.CommunityComTailLogs == "true" {
+			return true, nil
+		}
 		return false, nil
 	}
 
 	// If *ANY* of the pods enables logs, we enable for all of them
-	for _, pod := range pods.Items {
-		if pod.Metadata.Annotations.CommunityComTailLogs == "true" {
+	for _, podItem := range pods.Items {
+		if podItem.Metadata.Annotations.CommunityComTailLogs == "true" {
 			return true, nil
 		}
 	}
@@ -166,8 +207,10 @@ func NewTailAllFilter(kubeHost string, kubePort int, timeout time.Duration, cred
 }
 
 func (f *TailAllFilter) ShouldTailLogs(pod *Pod) (bool, error) {
+	// Try querying by ServiceName first (with underscore version)
+	serviceNameLabel := strings.Replace(pod.ServiceName, "-", "_", -1)
 	body, err := f.makeRequest(
-		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + pod.ServiceName,
+		"/api/v1/namespaces/" + pod.Namespace + "/pods?limit=100000&labelSelector=ServiceName%3D" + serviceNameLabel,
 	)
 	if err != nil {
 		return false, err
@@ -179,14 +222,34 @@ func (f *TailAllFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 		return false, fmt.Errorf("unable to decode response from K8s: %s", err)
 	}
 
-	// Default to tail if we don't know about this pod
+	// If no pods found by ServiceName, try querying the specific pod by name
 	if len(pods.Items) < 1 {
-		return true, nil
+		body, err = f.makeRequest(
+			"/api/v1/namespaces/" + pod.Namespace + "/pods/" + extractPodName(pod.Name),
+		)
+		if err != nil {
+			return false, err
+		}
+
+		var singlePod struct {
+			Metadata struct {
+				Annotations struct {
+					CommunityComTailLogs string `json:"community.com/TailLogs"`
+				} `json:"annotations"`
+			} `json:"metadata"`
+		}
+		err = json.Unmarshal(body, &singlePod)
+		if err != nil {
+			return false, fmt.Errorf("unable to decode response from K8s: %s", err)
+		}
+
+		// In TailAll mode: tail unless explicitly disabled
+		return singlePod.Metadata.Annotations.CommunityComTailLogs != "false", nil
 	}
 
 	// If any pod explicitly disables logs, disable for all
-	for _, pod := range pods.Items {
-		if pod.Metadata.Annotations.CommunityComTailLogs == "false" {
+	for _, podItem := range pods.Items {
+		if podItem.Metadata.Annotations.CommunityComTailLogs == "false" {
 			return false, nil
 		}
 	}
