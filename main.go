@@ -28,6 +28,8 @@ type Config struct {
 	DiscoInterval  time.Duration `envconfig:"DISCO_INTERVAL" default:"5s"`
 	MaxTrackedLogs int           `envconfig:"MAX_TRACKED_LOGS" default:"100"`
 
+	TailAll        bool          `envconfig:"TAIL_ALL" default:"false"`
+
 	CacheFilePath      string        `envconfig:"CACHE_FILE_PATH" default:"/var/log/logtailer.json"`
 	CacheFlushInterval time.Duration `envconfig:"CACHE_FLUSH_INTERVAL" default:"3s"`
 
@@ -137,7 +139,7 @@ func main() {
 	// Some deps for injection
 	cache := configureCache(config)
 	podFilter := NewPodFilter(
-		config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath,
+		config.KubeHost, config.KubePort, config.KubeTimeout, config.KubeCredsPath, config.TailAll,
 	)
 	disco := NewDirListDiscoverer(config.BasePath, config.Environment)
 	rptr := reporter.NewLimitExceededReporter(
@@ -154,7 +156,7 @@ func main() {
 		filter = podFilter
 	} else {
 		log.Warn("Failed to configure filter, proceeding anyway using stub...")
-		filter = &StubFilter{}
+		filter = &StubFilter{TailAll: config.TailAll}
 	}
 
 	// Set up and run the tracker
