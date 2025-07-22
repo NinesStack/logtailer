@@ -28,7 +28,7 @@ type Config struct {
 	DiscoInterval  time.Duration `envconfig:"DISCO_INTERVAL" default:"5s"`
 	MaxTrackedLogs int           `envconfig:"MAX_TRACKED_LOGS" default:"100"`
 
-	TailAll        bool          `envconfig:"TAIL_ALL" default:"false"`
+	TailAll bool `envconfig:"TAIL_ALL" default:"false"`
 
 	CacheFilePath      string        `envconfig:"CACHE_FILE_PATH" default:"/var/log/logtailer.json"`
 	CacheFlushInterval time.Duration `envconfig:"CACHE_FLUSH_INTERVAL" default:"3s"`
