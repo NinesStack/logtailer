@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 	limiter "github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
 	log "github.com/sirupsen/logrus"
+)
+
+var (
+	// Regex to extract level from logfmt-style logs (e.g., level=info, level=error, level="error")
+	logLevelRegex = regexp.MustCompile(`level="?([a-zA-Z]+)"?`)
 )
 
 type LogLine struct {
@@ -25,6 +31,17 @@ type LogOutput interface {
 
 type UDPSyslogger struct {
 	syslogger *log.Entry
+}
+
+// extractLogLevel attempts to extract the log level from structured log formats (logfmt).
+// It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
+// whether a level was found.
+func extractLogLevel(logLine string) (string, bool) {
+	matches := logLevelRegex.FindStringSubmatch(logLine)
+	if len(matches) >= 2 {
+		return strings.ToLower(matches[1]), true
+	}
+	return "", false
 }
 
 func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
@@ -87,7 +104,24 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 
 	logger := sysl.syslogger.WithField("Container", line.Container)
 
-	// Attempt to detect errors to log (a la sidecar-executor)
+	// First, try to extract the log level from structured logs (e.g., level=info)
+	// This is the preferred method as it uses the actual log level from the application
+	if level, found := extractLogLevel(lineTxt); found {
+		// Map to Error, Warn or Info based on severity
+		switch level {
+		case "panic", "fatal", "error":
+			logger.Error(lineTxt)
+		case "warning", "warn":
+			logger.Warn(lineTxt)
+		default:
+			// info, debug, trace all go to Info
+			logger.Info(lineTxt)
+		}
+		return
+	}
+
+	// Fallback to heuristic detection if no structured level found (a la sidecar-executor)
+	// This maintains backward compatibility for unstructured logs
 	lowerLine := strings.ToLower(lineTxt)
 	if descriptor == "stderr" || strings.Contains(lowerLine, "error") {
 		logger.Error(lineTxt)
