@@ -57,7 +57,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "bocaccio",
 				"Environment": "medieval",
-			}, "127.0.0.1:9714")
+			}, "127.0.0.1:9714", false) // enhanced regex parsing disabled to test og mode
 
 			logLine := "2022-12-06T12:20:28.418060579Z stdout F this is a test log line 💵 with UTF-8"
 
@@ -83,9 +83,9 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9715")
+			}, "127.0.0.1:9715", true)
 
-			// Info level log on stderr - should be logged as Info, not Error
+			// Info level info on stderr - should be logged as Info, not Error
 			infoLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level=info msg="Started Worker" Namespace=default`
 
 			go func() {
@@ -107,7 +107,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9716")
+			}, "127.0.0.1:9716", true)
 
 			// Warning level log on stderr
 			warnLog := `2025-11-14T09:36:09.227628554Z stderr F time="2025-11-14T09:36:09Z" level=warning msg="harvest failure" cmd=metric_data component=newrelic`
@@ -130,7 +130,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9717")
+			}, "127.0.0.1:9717", true)
 
 			// Error level log
 			errorLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level=error msg="Connection failed" error="timeout"`
@@ -154,7 +154,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9717")
+			}, "127.0.0.1:9717", true)
 
 			// Error level log
 			errorLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level="error" msg="Connection failed" error="timeout"`
@@ -178,7 +178,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9717")
+			}, "127.0.0.1:9717", true)
 
 			// Error level log
 			errorLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level=unknown msg="Connection failed" error="timeout"`

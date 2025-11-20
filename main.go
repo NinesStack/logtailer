@@ -8,13 +8,14 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/Shimmur/logtailer/cache"
 	"github.com/Shimmur/logtailer/reporter"
 	"github.com/kelseyhightower/envconfig"
 	director "github.com/relistan/go-director"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
-	_ "net/http/pprof"
 )
 
 const (
@@ -43,6 +44,8 @@ type Config struct {
 	KubePort      int           `envconfig:"KUBERNETES_SERVICE_PORT" default:"8080"`
 	KubeTimeout   time.Duration `envconfig:"KUBERNETES_TIMEOUT" default:"3s"`
 	KubeCredsPath string        `envconfig:"KUBERNETES_CREDS_PATH" default:"/var/run/secrets/kubernetes.io/serviceaccount"`
+
+	EnableRegexLogLevelParsing bool `envconfig:"ENABLE_REGEX_LOG_LEVEL_PARSING" default:false`
 
 	Debug bool `envconfig:"DEBUG" default:"false"`
 }
@@ -73,7 +76,7 @@ func NewTailerWithUDPSyslog(c *cache.Cache, hostname string,
 			"Environment": pod.Environment,
 			"PodName":     pod.Name,
 			"Hostname":    hostname,
-		}, config.SyslogAddress)
+		}, config.SyslogAddress, config.EnableRegexLogLevelParsing)
 
 		// Inject the UDPSyslogger into the RateLimitingLogger
 		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval, pod.ServiceName, udpLogger)
