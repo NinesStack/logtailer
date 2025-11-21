@@ -1,7 +1,7 @@
 ARG ALPINE_VERSION=3.22
 
 # ----- Build Container --------
-FROM golang:1.24.4-bullseye AS builder
+FROM golang:1.25.4-trixie AS builder
 
 ENV GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 

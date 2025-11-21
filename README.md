@@ -117,6 +117,13 @@ You can configure `logtailer` to report to New Relic Insights for reporting on
 log rate limiting. This is of course quite limiting for those who are not New
 Relic customers. A more open standard reporter will be forthcoming.
 
+Enhanced Log Level Extraction
+-----------------------------
+
+You can configure `logtailer` to attempt to extract log levels with an enhanced regex
+filter by setting the environment variable `ENABLE_REGEX_LOG_LEVEL_PARSING=true`.
+By default this mode is disabled.
+
 Running Locally for Testing
 ---------------------------
 

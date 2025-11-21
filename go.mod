@@ -1,6 +1,6 @@
 module github.com/Shimmur/logtailer
 
-go 1.24
+go 1.25
 
 require (
 	github.com/Nitro/sidecar-executor v1.5.2

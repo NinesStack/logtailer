@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 	limiter "github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
 	log "github.com/sirupsen/logrus"
+)
+
+var (
+	// Regex to extract level from logfmt-style logs (e.g., level=info, level=error, level="error")
+	logLevelRegex = regexp.MustCompile(`level="?([a-zA-Z]+)"?`)
 )
 
 type LogLine struct {
@@ -24,10 +30,22 @@ type LogOutput interface {
 }
 
 type UDPSyslogger struct {
-	syslogger *log.Entry
+	syslogger                  *log.Entry
+	enableRegexLogLevelParsing bool
 }
 
-func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
+// extractLogLevel attempts to extract the log level from structured log formats (logfmt).
+// It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
+// whether a level was found.
+func extractLogLevel(logLine string) (string, bool) {
+	matches := logLevelRegex.FindStringSubmatch(logLine)
+	if len(matches) >= 2 {
+		return strings.ToLower(matches[1]), true
+	}
+	return "", false
+}
+
+func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool) *UDPSyslogger {
 	syslogger := log.New()
 
 	// We relay UDP syslog because we don't plan to ship it off the box and
@@ -57,7 +75,8 @@ func NewUDPSyslogger(labels map[string]string, address string) *UDPSyslogger {
 	}
 
 	return &UDPSyslogger{
-		syslogger: syslogger.WithFields(fields),
+		syslogger:                  syslogger.WithFields(fields),
+		enableRegexLogLevelParsing: enableRegexLogLevelParsing,
 	}
 }
 
@@ -87,7 +106,26 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 
 	logger := sysl.syslogger.WithField("Container", line.Container)
 
-	// Attempt to detect errors to log (a la sidecar-executor)
+	// If regex log level parsing is enabled, try to extract the log level
+	// from structured logs (e.g., level=info)
+	if sysl.enableRegexLogLevelParsing {
+		if level, found := extractLogLevel(lineTxt); found {
+			// Map to Error, Warn or Info based on severity
+			switch level {
+			case "panic", "fatal", "error":
+				logger.Error(lineTxt)
+			case "warning", "warn":
+				logger.Warn(lineTxt)
+			default:
+				// info, debug, trace all go to Info
+				logger.Info(lineTxt)
+			}
+			return
+		}
+	}
+
+	// Fallback to heuristic detection (a la sidecar-executor)
+	// This is used when enhanced extraction is disabled or no structured level was found
 	lowerLine := strings.ToLower(lineTxt)
 	if descriptor == "stderr" || strings.Contains(lowerLine, "error") {
 		logger.Error(lineTxt)
