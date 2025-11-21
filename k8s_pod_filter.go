@@ -103,6 +103,7 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 		return []byte{}, err
 	}
 
+	req.Header.Set("User-Agent", "logtailer/"+Version)
 	req.Header.Set("Authorization", "Bearer "+f.token)
 
 	resp, err := f.client.Do(req)
