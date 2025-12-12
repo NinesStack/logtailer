@@ -65,9 +65,11 @@ func Test_makeRequest(t *testing.T) {
 
 		Convey("makes a request with the right headers and auth", func() {
 			var auth string
+			var userAgent string
 			httpmock.RegisterResponder("GET", "http://beowulf.example.com:80/nowhere",
 				func(req *http.Request) (*http.Response, error) {
 					auth = req.Header.Get("Authorization")
+					userAgent = req.Header.Get("User-Agent")
 					return httpmock.NewJsonResponse(200, map[string]interface{}{"success": "yeah"})
 				},
 			)
@@ -76,6 +78,7 @@ func Test_makeRequest(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(auth, ShouldStartWith, "Bearer ")
 			So(auth, ShouldContainSubstring, "this would be a token")
+			So(userAgent, ShouldEqual, "logtailer/local-build")
 
 			So(body, ShouldNotBeEmpty)
 		})

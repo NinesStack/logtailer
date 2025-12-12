@@ -18,6 +18,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	Version = "local-build"
+)
+
 const (
 	// NewRelicBaseURL is the base URL where we'll send events
 	NewRelicBaseURL = "https://insights-collector.newrelic.com/v1/accounts/"
