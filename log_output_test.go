@@ -39,6 +39,48 @@ func Test_extractLogLevel(t *testing.T) {
 			_, found := extractLogLevel(line)
 			So(found, ShouldBeFalse)
 		})
+
+		Convey("extracts info level from JSON format", func() {
+			line := `{"level":"info","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"successfully deployed model","ingressGroup":"k8s-internal-dev"}`
+			level, found := extractLogLevel(line)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "info")
+		})
+
+		Convey("extracts error level from JSON format", func() {
+			line := `{"level":"error","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deployment failed"}`
+			level, found := extractLogLevel(line)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "error")
+		})
+
+		Convey("extracts warn level from JSON format", func() {
+			line := `{"level":"warn","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deprecated API used"}`
+			level, found := extractLogLevel(line)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "warn")
+		})
+
+		Convey("extracts info level from tab-separated format", func() {
+			line := `2025-12-18T06:20:47.312Z    INFO    main    Bootstrap    memory-manager.http-client.log.path`
+			level, found := extractLogLevel(line)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "info")
+		})
+
+		Convey("extracts error level from tab-separated format", func() {
+			line := `2025-12-18T06:20:47.312Z    ERROR    main    Bootstrap    Failed to initialize`
+			level, found := extractLogLevel(line)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "error")
+		})
+
+		Convey("extracts warning level from tab-separated format", func() {
+			line := `2025-12-18T06:20:47.312Z    WARN    main    Bootstrap    Deprecated configuration`
+			level, found := extractLogLevel(line)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "warn")
+		})
 	})
 }
 
