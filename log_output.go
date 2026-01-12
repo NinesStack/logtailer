@@ -38,6 +38,32 @@ type UDPSyslogger struct {
 	syslogger                  *log.Entry
 	enableRegexLogLevelParsing bool
 	logFormat                  string
+	logRegex                   *regexp.Regexp // Pre-selected regex pattern for performance
+}
+
+// selectLogRegex returns the appropriate regex pattern based on the log format string.
+// This should be called once during initialization rather than on every log line.
+func selectLogRegex(logFormat string) *regexp.Regexp {
+	switch logFormat {
+	case "json":
+		return jsonRegex
+	case "tab":
+		return tabSeparatedRegex
+	default:
+		return goLogFmtRegex
+	}
+}
+
+// extractLogLevelWithRegex attempts to extract the log level using a pre-selected regex pattern.
+// This is the optimized version used internally by UDPSyslogger.
+// It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
+// whether a level was found.
+func extractLogLevelWithRegex(logLine string, regex *regexp.Regexp) (string, bool) {
+	matches := regex.FindStringSubmatch(logLine)
+	if len(matches) >= 2 {
+		return strings.ToLower(matches[1]), true
+	}
+	return "", false
 }
 
 // extractLogLevel attempts to extract the log level from structured log formats.
@@ -45,26 +71,10 @@ type UDPSyslogger struct {
 // Defaults to go log-fmt type if no logRegexType supplied
 // It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
 // whether a level was found.
+// Note: This function is kept for backwards compatibility with tests. Internal code should
+// use extractLogLevelWithRegex with a pre-selected regex for better performance.
 func extractLogLevel(logLine string, logFormat string) (string, bool) {
-	switch logFormat {
-	case "json":
-		matches := jsonRegex.FindStringSubmatch(logLine)
-		if len(matches) >= 2 {
-			return strings.ToLower(matches[1]), true
-		}
-	case "tab":
-		matches := tabSeparatedRegex.FindStringSubmatch(logLine)
-		if len(matches) >= 2 {
-			return strings.ToLower(matches[1]), true
-		}
-	default:
-		matches := goLogFmtRegex.FindStringSubmatch(logLine)
-		if len(matches) >= 2 {
-			return strings.ToLower(matches[1]), true
-		}
-	}
-
-	return "", false
+	return extractLogLevelWithRegex(logLine, selectLogRegex(logFormat))
 }
 
 func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool, logFormat string) *UDPSyslogger {
@@ -100,6 +110,7 @@ func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLev
 		syslogger:                  syslogger.WithFields(fields),
 		enableRegexLogLevelParsing: enableRegexLogLevelParsing,
 		logFormat:                  logFormat,
+		logRegex:                   selectLogRegex(logFormat),
 	}
 }
 
@@ -132,7 +143,7 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 	// If regex log level parsing is enabled, try to extract the log level
 	// from structured logs (e.g., level=info)
 	if sysl.enableRegexLogLevelParsing {
-		if level, found := extractLogLevel(lineTxt, sysl.logFormat); found {
+		if level, found := extractLogLevelWithRegex(lineTxt, sysl.logRegex); found {
 			// Map to Error, Warn or Info based on severity
 			switch level {
 			case "panic", "fatal", "error":
