@@ -36,7 +36,7 @@ type UDPSyslogger struct {
 	syslogger                  *log.Entry
 	enableRegexLogLevelParsing bool
 	logFormat                  string
-	logRegex                   *regexp.Regexp // Pre-selected regex pattern for performance
+	logRegex                   *regexp.Regexp
 }
 
 // selectLogRegex returns the appropriate regex pattern based on the log format string.
@@ -48,12 +48,10 @@ func selectLogRegex(logFormat string) *regexp.Regexp {
 		logFormat = "go-log-fmt"
 	}
 
-	// Simple map lookup
 	if regex, ok := SupportedLogFormats[logFormat]; ok {
 		return regex
 	}
 
-	// Not found - warn and use default
 	log.Warnf("Unsupported log format '%s', falling back to 'go-log-fmt'", logFormat)
 	return SupportedLogFormats["go-log-fmt"]
 }
