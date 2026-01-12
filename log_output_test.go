@@ -11,73 +11,73 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func Test_extractLogLevel(t *testing.T) {
-	Convey("extractLogLevel()", t, func() {
+func Test_extractLogLevelWithRegex(t *testing.T) {
+	Convey("extractLogLevelWithRegex()", t, func() {
 		Convey("extracts info level from logfmt", func() {
 			line := `time="2025-11-14T09:02:08Z" level=info msg="Started Worker" Namespace=workflow-automation`
-			level, found := extractLogLevel(line, "")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(""))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from logfmt", func() {
 			line := `time="2025-11-14T09:02:08Z" level=error msg="Something failed"`
-			level, found := extractLogLevel(line, "")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(""))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warning level from logfmt", func() {
 			line := `time="2025-11-14T09:36:09Z" level=warning msg="harvest failure" cmd=metric_data`
-			level, found := extractLogLevel(line, "")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(""))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warning")
 		})
 
 		Convey("returns false when no level found", func() {
 			line := `This is just a plain text log with no level`
-			_, found := extractLogLevel(line, "")
+			_, found := extractLogLevelWithRegex(line, selectLogRegex(""))
 			So(found, ShouldBeFalse)
 		})
 
 		Convey("extracts info level from JSON format", func() {
 			line := `{"level":"info","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"successfully deployed model","ingressGroup":"k8s-internal-dev"}`
-			level, found := extractLogLevel(line, "json")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex("json"))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from JSON format", func() {
 			line := `{"level":"error","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deployment failed"}`
-			level, found := extractLogLevel(line, "json")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex("json"))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warn level from JSON format", func() {
 			line := `{"level":"warn","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deprecated API used"}`
-			level, found := extractLogLevel(line, "json")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex("json"))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warn")
 		})
 
 		Convey("extracts info level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    INFO    main    Bootstrap    memory-manager.http-client.log.path`
-			level, found := extractLogLevel(line, "tab")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex("tab"))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    ERROR    main    Bootstrap    Failed to initialize`
-			level, found := extractLogLevel(line, "tab")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex("tab"))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warning level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    WARN    main    Bootstrap    Deprecated configuration`
-			level, found := extractLogLevel(line, "tab")
+			level, found := extractLogLevelWithRegex(line, selectLogRegex("tab"))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warn")
 		})

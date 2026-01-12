@@ -66,17 +66,6 @@ func extractLogLevelWithRegex(logLine string, regex *regexp.Regexp) (string, boo
 	return "", false
 }
 
-// extractLogLevel attempts to extract the log level from structured log formats.
-// Multiple regex patterns are supported but only used if specified via k8s annotation
-// Defaults to go log-fmt type if no logRegexType supplied
-// It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
-// whether a level was found.
-// Note: This function is kept for backwards compatibility with tests. Internal code should
-// use extractLogLevelWithRegex with a pre-selected regex for better performance.
-func extractLogLevel(logLine string, logFormat string) (string, bool) {
-	return extractLogLevelWithRegex(logLine, selectLogRegex(logFormat))
-}
-
 func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool, logFormat string) *UDPSyslogger {
 	syslogger := log.New()
 
