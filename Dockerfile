@@ -1,4 +1,4 @@
-ARG ALPINE_VERSION=3.22
+ARG ALPINE_VERSION=3.23
 
 # ----- Build Container --------
 FROM golang:1.25.4-trixie AS builder
