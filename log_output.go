@@ -17,9 +17,9 @@ import (
 // SupportedLogFormats maps format identifiers to their compiled regex patterns
 // for extracting log level from different log formats.
 var SupportedLogFormats = map[string]*regexp.Regexp{
-	"go-log-fmt": regexp.MustCompile(`level="?([a-zA-Z]+)"?`),       // logfmt-style: level=info
-	"json":       regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`), // JSON: "level":"info"
-	"tab":        regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`),          // Tab-separated: INFO
+	"go-logfmt": regexp.MustCompile(`level="?([a-zA-Z]+)"?`),       // logfmt-style: level=info
+	"json":      regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`), // JSON: "level":"info"
+	"tab":       regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`),          // Tab-separated: INFO
 }
 
 type LogLine struct {
@@ -41,19 +41,19 @@ type UDPSyslogger struct {
 
 // selectLogRegex returns the appropriate regex pattern based on the log format string.
 // This should be called once during initialization rather than on every log line.
-// Empty string annotations default to "go-log-fmt". Invalid formats log a warning and fall back to "go-log-fmt".
+// Empty string annotations default to "go-logfmt". Invalid formats log a warning and fall back to "go-logfmt".
 func selectLogRegex(logFormat string) *regexp.Regexp {
-	// Empty annotation defaults to go-log-fmt
+	// Empty annotation defaults to go-logfmt
 	if logFormat == "" {
-		logFormat = "go-log-fmt"
+		logFormat = "go-logfmt"
 	}
 
 	if regex, ok := SupportedLogFormats[logFormat]; ok {
 		return regex
 	}
 
-	log.Warnf("Unsupported log format '%s', falling back to 'go-log-fmt'", logFormat)
-	return SupportedLogFormats["go-log-fmt"]
+	log.Warnf("Unsupported log format '%s', falling back to 'go-logfmt'", logFormat)
+	return SupportedLogFormats["go-logfmt"]
 }
 
 // extractLogLevelWithRegex attempts to extract the log level using a pre-selected regex pattern.

@@ -86,9 +86,9 @@ func Test_extractLogLevelWithRegex(t *testing.T) {
 
 func Test_selectLogRegex_ValidFormats(t *testing.T) {
 	Convey("selectLogRegex() with valid formats", t, func() {
-		Convey("empty string maps to go-log-fmt format", func() {
+		Convey("empty string maps to go-logfmt format", func() {
 			regex := selectLogRegex("")
-			So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+			So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
 
 			// Verify it actually works by testing with a logfmt line
 			line := `level=info msg="test"`
@@ -97,9 +97,9 @@ func Test_selectLogRegex_ValidFormats(t *testing.T) {
 			So(level, ShouldEqual, "info")
 		})
 
-		Convey("go-log-fmt explicitly returns go-log-fmt format", func() {
-			regex := selectLogRegex("go-log-fmt")
-			So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+		Convey("go-logfmt explicitly returns go-logfmt format", func() {
+			regex := selectLogRegex("go-logfmt")
+			So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
 
 			// Verify it actually works
 			line := `level=error msg="test"`
@@ -134,31 +134,31 @@ func Test_selectLogRegex_ValidFormats(t *testing.T) {
 
 func Test_selectLogRegex_InvalidFormat(t *testing.T) {
 	Convey("selectLogRegex() with invalid formats", t, func() {
-		Convey("invalid format logs warning and falls back to go-log-fmt", func() {
+		Convey("invalid format logs warning and falls back to go-logfmt", func() {
 			output := LogCapture(func() {
 				regex := selectLogRegex("xml")
-				So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+				So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
 			})
 			So(output, ShouldContainSubstring, "Unsupported log format 'xml'")
-			So(output, ShouldContainSubstring, "falling back to 'go-log-fmt'")
+			So(output, ShouldContainSubstring, "falling back to 'go-logfmt'")
 		})
 
 		Convey("wrong case format logs warning and falls back", func() {
 			output := LogCapture(func() {
 				regex := selectLogRegex("JSON")
-				So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+				So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
 			})
 			So(output, ShouldContainSubstring, "Unsupported log format 'JSON'")
-			So(output, ShouldContainSubstring, "falling back to 'go-log-fmt'")
+			So(output, ShouldContainSubstring, "falling back to 'go-logfmt'")
 		})
 
 		Convey("csv format logs warning and falls back", func() {
 			output := LogCapture(func() {
 				regex := selectLogRegex("csv")
-				So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+				So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
 			})
 			So(output, ShouldContainSubstring, "Unsupported log format 'csv'")
-			So(output, ShouldContainSubstring, "falling back to 'go-log-fmt'")
+			So(output, ShouldContainSubstring, "falling back to 'go-logfmt'")
 		})
 
 		Convey("fallback regex works correctly", func() {
