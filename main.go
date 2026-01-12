@@ -80,7 +80,7 @@ func NewTailerWithUDPSyslog(c *cache.Cache, hostname string,
 			"Environment": pod.Environment,
 			"PodName":     pod.Name,
 			"Hostname":    hostname,
-		}, config.SyslogAddress, config.EnableRegexLogLevelParsing)
+		}, config.SyslogAddress, config.EnableRegexLogLevelParsing, pod.LogFormat)
 
 		// Inject the UDPSyslogger into the RateLimitingLogger
 		limitingLogger := NewRateLimitingLogger(rptr, config.TokenLimit, config.LimitInterval, pod.ServiceName, udpLogger)

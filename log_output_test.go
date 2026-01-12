@@ -15,69 +15,69 @@ func Test_extractLogLevel(t *testing.T) {
 	Convey("extractLogLevel()", t, func() {
 		Convey("extracts info level from logfmt", func() {
 			line := `time="2025-11-14T09:02:08Z" level=info msg="Started Worker" Namespace=workflow-automation`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from logfmt", func() {
 			line := `time="2025-11-14T09:02:08Z" level=error msg="Something failed"`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warning level from logfmt", func() {
 			line := `time="2025-11-14T09:36:09Z" level=warning msg="harvest failure" cmd=metric_data`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warning")
 		})
 
 		Convey("returns false when no level found", func() {
 			line := `This is just a plain text log with no level`
-			_, found := extractLogLevel(line)
+			_, found := extractLogLevel(line, "")
 			So(found, ShouldBeFalse)
 		})
 
 		Convey("extracts info level from JSON format", func() {
 			line := `{"level":"info","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"successfully deployed model","ingressGroup":"k8s-internal-dev"}`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "json")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from JSON format", func() {
 			line := `{"level":"error","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deployment failed"}`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "json")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warn level from JSON format", func() {
 			line := `{"level":"warn","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deprecated API used"}`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "json")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warn")
 		})
 
 		Convey("extracts info level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    INFO    main    Bootstrap    memory-manager.http-client.log.path`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "tab")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    ERROR    main    Bootstrap    Failed to initialize`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "tab")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warning level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    WARN    main    Bootstrap    Deprecated configuration`
-			level, found := extractLogLevel(line)
+			level, found := extractLogLevel(line, "tab")
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warn")
 		})
@@ -100,7 +100,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "bocaccio",
 				"Environment": "medieval",
-			}, "127.0.0.1:9714", enableRegexLogLevelParsing) // enhanced regex parsing disabled to test og mode
+			}, "127.0.0.1:9714", enableRegexLogLevelParsing, "") // enhanced regex parsing disabled to test og mode
 
 			logLine := "2022-12-06T12:20:28.418060579Z stdout F this is a test log line 💵 with UTF-8"
 
@@ -127,7 +127,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9715", enableRegexLogLevelParsing)
+			}, "127.0.0.1:9715", enableRegexLogLevelParsing, "")
 
 			// Info level info on stderr - should be logged as Info, not Error
 			infoLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level=info msg="Started Worker" Namespace=default`
@@ -152,7 +152,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9716", enableRegexLogLevelParsing)
+			}, "127.0.0.1:9716", enableRegexLogLevelParsing, "")
 
 			// Warning level log on stderr
 			warnLog := `2025-11-14T09:36:09.227628554Z stderr F time="2025-11-14T09:36:09Z" level=warning msg="harvest failure" cmd=metric_data component=newrelic`
@@ -176,7 +176,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9717", enableRegexLogLevelParsing)
+			}, "127.0.0.1:9717", enableRegexLogLevelParsing, "")
 
 			// Error level log
 			errorLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level=error msg="Connection failed" error="timeout"`
@@ -201,7 +201,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9717", enableRegexLogLevelParsing)
+			}, "127.0.0.1:9717", enableRegexLogLevelParsing, "")
 
 			// Error level log
 			errorLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level="error" msg="Connection failed" error="timeout"`
@@ -226,7 +226,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			logger := NewUDPSyslogger(map[string]string{
 				"ServiceName": "service",
 				"Environment": "prod",
-			}, "127.0.0.1:9717", enableRegexLogLevelParsing)
+			}, "127.0.0.1:9717", enableRegexLogLevelParsing, "")
 
 			// Error level log
 			errorLog := `2025-11-14T09:02:08.322480471Z stderr F time="2025-11-14T09:02:08Z" level=unknown msg="Connection failed" error="timeout"`

@@ -17,11 +17,11 @@ import (
 var (
 	// Regex patterns to extract level from various log formats (tried in order)
 	// Pattern 1: logfmt-style logs (e.g., level=info, level=error, level="error")
-	logLevelRegex = regexp.MustCompile(`level="?([a-zA-Z]+)"?`)
+	goLogFmtRegex = regexp.MustCompile(`level="?([a-zA-Z]+)"?`)
 	// Pattern 2: JSON logs (e.g., {"level":"info",...})
-	jsonLevelRegex = regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`)
+	jsonRegex = regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`)
 	// Pattern 3: Tab-separated logs with uppercase level (e.g., 2025-12-18T06:20:47.312Z    INFO    main...)
-	tabSeparatedLevelRegex = regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`)
+	tabSeparatedRegex = regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`)
 )
 
 type LogLine struct {
@@ -37,35 +37,37 @@ type LogOutput interface {
 type UDPSyslogger struct {
 	syslogger                  *log.Entry
 	enableRegexLogLevelParsing bool
+	logFormat                  string
 }
 
 // extractLogLevel attempts to extract the log level from structured log formats.
-// It tries multiple regex patterns in order (logfmt, JSON, tab-separated).
+// Multiple regex patterns are supported but only used if specified via k8s annotation
+// Defaults to go log-fmt type if no logRegexType supplied
 // It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
 // whether a level was found.
-func extractLogLevel(logLine string) (string, bool) {
-	// Try logfmt pattern first (most common)
-	matches := logLevelRegex.FindStringSubmatch(logLine)
-	if len(matches) >= 2 {
-		return strings.ToLower(matches[1]), true
-	}
-
-	// Try JSON pattern
-	matches = jsonLevelRegex.FindStringSubmatch(logLine)
-	if len(matches) >= 2 {
-		return strings.ToLower(matches[1]), true
-	}
-
-	// Try tab-separated pattern (uppercase levels)
-	matches = tabSeparatedLevelRegex.FindStringSubmatch(logLine)
-	if len(matches) >= 2 {
-		return strings.ToLower(matches[1]), true
+func extractLogLevel(logLine string, logFormat string) (string, bool) {
+	switch logFormat {
+	case "json":
+		matches := jsonRegex.FindStringSubmatch(logLine)
+		if len(matches) >= 2 {
+			return strings.ToLower(matches[1]), true
+		}
+	case "tab":
+		matches := tabSeparatedRegex.FindStringSubmatch(logLine)
+		if len(matches) >= 2 {
+			return strings.ToLower(matches[1]), true
+		}
+	default:
+		matches := goLogFmtRegex.FindStringSubmatch(logLine)
+		if len(matches) >= 2 {
+			return strings.ToLower(matches[1]), true
+		}
 	}
 
 	return "", false
 }
 
-func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool) *UDPSyslogger {
+func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool, logFormat string) *UDPSyslogger {
 	syslogger := log.New()
 
 	// We relay UDP syslog because we don't plan to ship it off the box and
@@ -97,6 +99,7 @@ func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLev
 	return &UDPSyslogger{
 		syslogger:                  syslogger.WithFields(fields),
 		enableRegexLogLevelParsing: enableRegexLogLevelParsing,
+		logFormat:                  logFormat,
 	}
 }
 
@@ -129,7 +132,7 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 	// If regex log level parsing is enabled, try to extract the log level
 	// from structured logs (e.g., level=info)
 	if sysl.enableRegexLogLevelParsing {
-		if level, found := extractLogLevel(lineTxt); found {
+		if level, found := extractLogLevel(lineTxt, sysl.logFormat); found {
 			// Map to Error, Warn or Info based on severity
 			switch level {
 			case "panic", "fatal", "error":

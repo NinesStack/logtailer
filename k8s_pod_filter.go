@@ -21,7 +21,9 @@ type K8sPodsMetadata struct {
 	Items []struct {
 		Metadata struct {
 			Annotations struct {
-				CommunityComTailLogs string `json:"community.com/TailLogs"`
+				CommunityComTailLogs string `json:"community.com/TailLogs"` // Backwards compatibility
+				LogtailerTailLogs    string `json:"logtailer/TailLogs"`
+				LogtailerLogFormat   string `json:"logtailer/LogFormat"`
 			} `json:"annotations"`
 		} `json:"metadata"`
 	} `json:"items"`
@@ -144,8 +146,12 @@ func (f *PodFilter) ShouldTailLogs(pod *Pod) (bool, error) {
 	}
 
 	// If *ANY* of the pods enables logs, we enable for all of them
-	for _, pod := range pods.Items {
-		if pod.Metadata.Annotations.CommunityComTailLogs == "true" {
+	for _, podItem := range pods.Items {
+		if podItem.Metadata.Annotations.CommunityComTailLogs == "true" || podItem.Metadata.Annotations.LogtailerTailLogs == "true" {
+			// Capture the log format annotation if present
+			if podItem.Metadata.Annotations.LogtailerLogFormat != "" {
+				pod.LogFormat = podItem.Metadata.Annotations.LogtailerLogFormat
+			}
 			return true, nil
 		}
 	}
