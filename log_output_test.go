@@ -84,6 +84,99 @@ func Test_extractLogLevelWithRegex(t *testing.T) {
 	})
 }
 
+func Test_selectLogRegex_ValidFormats(t *testing.T) {
+	Convey("selectLogRegex() with valid formats", t, func() {
+		Convey("empty string maps to go-log-fmt format", func() {
+			regex := selectLogRegex("")
+			So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+
+			// Verify it actually works by testing with a logfmt line
+			line := `level=info msg="test"`
+			level, found := extractLogLevelWithRegex(line, regex)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "info")
+		})
+
+		Convey("go-log-fmt explicitly returns go-log-fmt format", func() {
+			regex := selectLogRegex("go-log-fmt")
+			So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+
+			// Verify it actually works
+			line := `level=error msg="test"`
+			level, found := extractLogLevelWithRegex(line, regex)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "error")
+		})
+
+		Convey("json returns json format", func() {
+			regex := selectLogRegex("json")
+			So(regex, ShouldEqual, SupportedLogFormats["json"])
+
+			// Verify it actually works
+			line := `{"level":"warn","msg":"test"}`
+			level, found := extractLogLevelWithRegex(line, regex)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "warn")
+		})
+
+		Convey("tab returns tab-separated format", func() {
+			regex := selectLogRegex("tab")
+			So(regex, ShouldEqual, SupportedLogFormats["tab"])
+
+			// Verify it actually works
+			line := `2025-12-18T06:20:47.312Z    ERROR    main    test`
+			level, found := extractLogLevelWithRegex(line, regex)
+			So(found, ShouldBeTrue)
+			So(level, ShouldEqual, "error")
+		})
+	})
+}
+
+func Test_selectLogRegex_InvalidFormat(t *testing.T) {
+	Convey("selectLogRegex() with invalid formats", t, func() {
+		Convey("invalid format logs warning and falls back to go-log-fmt", func() {
+			output := LogCapture(func() {
+				regex := selectLogRegex("xml")
+				So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+			})
+			So(output, ShouldContainSubstring, "Unsupported log format 'xml'")
+			So(output, ShouldContainSubstring, "falling back to 'go-log-fmt'")
+		})
+
+		Convey("wrong case format logs warning and falls back", func() {
+			output := LogCapture(func() {
+				regex := selectLogRegex("JSON")
+				So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+			})
+			So(output, ShouldContainSubstring, "Unsupported log format 'JSON'")
+			So(output, ShouldContainSubstring, "falling back to 'go-log-fmt'")
+		})
+
+		Convey("csv format logs warning and falls back", func() {
+			output := LogCapture(func() {
+				regex := selectLogRegex("csv")
+				So(regex, ShouldEqual, SupportedLogFormats["go-log-fmt"])
+			})
+			So(output, ShouldContainSubstring, "Unsupported log format 'csv'")
+			So(output, ShouldContainSubstring, "falling back to 'go-log-fmt'")
+		})
+
+		Convey("fallback regex works correctly", func() {
+			// Test that the fallback regex actually works on log lines
+			output := LogCapture(func() {
+				regex := selectLogRegex("unsupported")
+
+				// Test with logfmt line
+				line := `time="2025-11-14T09:02:08Z" level=info msg="test"`
+				level, found := extractLogLevelWithRegex(line, regex)
+				So(found, ShouldBeTrue)
+				So(level, ShouldEqual, "info")
+			})
+			So(output, ShouldContainSubstring, "Unsupported log format")
+		})
+	})
+}
+
 func Test_UDPSyslogger(t *testing.T) {
 	theJson := struct {
 		Environment string    `json:"Environment"`

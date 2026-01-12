@@ -14,15 +14,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	// Regex patterns to extract level from various log formats (tried in order)
-	// Pattern 1: logfmt-style logs (e.g., level=info, level=error, level="error")
-	goLogFmtRegex = regexp.MustCompile(`level="?([a-zA-Z]+)"?`)
-	// Pattern 2: JSON logs (e.g., {"level":"info",...})
-	jsonRegex = regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`)
-	// Pattern 3: Tab-separated logs with uppercase level (e.g., 2025-12-18T06:20:47.312Z    INFO    main...)
-	tabSeparatedRegex = regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`)
-)
+// SupportedLogFormats maps format identifiers to their compiled regex patterns
+// for extracting log level from different log formats.
+var SupportedLogFormats = map[string]*regexp.Regexp{
+	"go-log-fmt": regexp.MustCompile(`level="?([a-zA-Z]+)"?`),       // logfmt-style: level=info
+	"json":       regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`), // JSON: "level":"info"
+	"tab":        regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`),          // Tab-separated: INFO
+}
 
 type LogLine struct {
 	Text      string // The log line
@@ -43,15 +41,21 @@ type UDPSyslogger struct {
 
 // selectLogRegex returns the appropriate regex pattern based on the log format string.
 // This should be called once during initialization rather than on every log line.
+// Empty string annotations default to "go-log-fmt". Invalid formats log a warning and fall back to "go-log-fmt".
 func selectLogRegex(logFormat string) *regexp.Regexp {
-	switch logFormat {
-	case "json":
-		return jsonRegex
-	case "tab":
-		return tabSeparatedRegex
-	default:
-		return goLogFmtRegex
+	// Empty annotation defaults to go-log-fmt
+	if logFormat == "" {
+		logFormat = "go-log-fmt"
 	}
+
+	// Simple map lookup
+	if regex, ok := SupportedLogFormats[logFormat]; ok {
+		return regex
+	}
+
+	// Not found - warn and use default
+	log.Warnf("Unsupported log format '%s', falling back to 'go-log-fmt'", logFormat)
+	return SupportedLogFormats["go-log-fmt"]
 }
 
 // extractLogLevelWithRegex attempts to extract the log level using a pre-selected regex pattern.
