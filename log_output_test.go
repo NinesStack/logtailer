@@ -185,6 +185,7 @@ func Test_UDPSyslogger(t *testing.T) {
 		ServiceName string    `json:"ServiceName"`
 		Timestamp   time.Time `json:"Timestamp"`
 		Container   string    `json:"Container"`
+		LogFormat   string    `json:"LogFormat"`
 	}{}
 
 	Convey("UDPSyslogger()", t, func() {
@@ -213,6 +214,7 @@ func Test_UDPSyslogger(t *testing.T) {
 			So(theJson.Payload, ShouldEqual, logLine[40:len(logLine)])
 			So(theJson.Timestamp, ShouldNotBeEmpty)
 			So(theJson.Container, ShouldEqual, "beowulf")
+			So(theJson.LogFormat, ShouldEqual, "") // Should be empty when regex parsing disabled
 		})
 
 		Convey("correctly parses level from structured logs on stderr", func() {
@@ -238,6 +240,7 @@ func Test_UDPSyslogger(t *testing.T) {
 
 			// Should be logged as "info", NOT "error" despite being on stderr
 			So(theJson.Level, ShouldEqual, "info")
+			So(theJson.LogFormat, ShouldEqual, "go-logfmt") // Should default to go-logfmt when empty
 		})
 
 		Convey("correctly parses warning level from structured logs", func() {

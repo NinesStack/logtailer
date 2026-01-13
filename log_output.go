@@ -89,6 +89,16 @@ func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLev
 	})
 	syslogger.SetOutput(ioutil.Discard)
 
+	// Normalize empty logFormat to default when regex parsing is enabled
+	if enableRegexLogLevelParsing && logFormat == "" {
+		logFormat = "go-logfmt"
+	}
+
+	// If regex parsing is disabled, ensure logFormat is empty
+	if !enableRegexLogLevelParsing {
+		logFormat = ""
+	}
+
 	// Add four to the labels length to account for hostname, etc
 	fields := make(log.Fields, len(labels)+4)
 
@@ -129,7 +139,10 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 		lineTxt = lineTxt[39:len(lineTxt)]
 	}
 
-	logger := sysl.syslogger.WithField("Container", line.Container)
+	logger := sysl.syslogger.WithFields(log.Fields{
+		"Container": line.Container,
+		"LogFormat": sysl.logFormat,
+	})
 
 	// If regex log level parsing is enabled, try to extract the log level
 	// from structured logs (e.g., level=info)
