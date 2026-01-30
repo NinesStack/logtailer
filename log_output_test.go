@@ -15,69 +15,69 @@ func Test_extractLogLevelWithRegex(t *testing.T) {
 	Convey("extractLogLevelWithRegex()", t, func() {
 		Convey("extracts info level from logfmt", func() {
 			line := `time="2025-11-14T09:02:08Z" level=info msg="Started Worker" Namespace=workflow-automation`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex(""))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatGo))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from logfmt", func() {
 			line := `time="2025-11-14T09:02:08Z" level=error msg="Something failed"`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex(""))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatGo))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warning level from logfmt", func() {
 			line := `time="2025-11-14T09:36:09Z" level=warning msg="harvest failure" cmd=metric_data`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex(""))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatGo))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warning")
 		})
 
 		Convey("returns false when no level found", func() {
 			line := `This is just a plain text log with no level`
-			_, found := extractLogLevelWithRegex(line, selectLogRegex(""))
+			_, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatGo))
 			So(found, ShouldBeFalse)
 		})
 
 		Convey("extracts info level from JSON format", func() {
 			line := `{"level":"info","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"successfully deployed model","ingressGroup":"k8s-internal-dev"}`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex("json"))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatJSON))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from JSON format", func() {
 			line := `{"level":"error","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deployment failed"}`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex("json"))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatJSON))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warn level from JSON format", func() {
 			line := `{"level":"warn","ts":"2025-12-18T07:15:30Z","logger":"controllers.ingress","msg":"deprecated API used"}`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex("json"))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatJSON))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warn")
 		})
 
 		Convey("extracts info level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    INFO    main    Bootstrap    memory-manager.http-client.log.path`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex("tab"))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatTab))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "info")
 		})
 
 		Convey("extracts error level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    ERROR    main    Bootstrap    Failed to initialize`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex("tab"))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatTab))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "error")
 		})
 
 		Convey("extracts warning level from tab-separated format", func() {
 			line := `2025-12-18T06:20:47.312Z    WARN    main    Bootstrap    Deprecated configuration`
-			level, found := extractLogLevelWithRegex(line, selectLogRegex("tab"))
+			level, found := extractLogLevelWithRegex(line, selectLogRegex(LogFormatTab))
 			So(found, ShouldBeTrue)
 			So(level, ShouldEqual, "warn")
 		})
@@ -86,9 +86,9 @@ func Test_extractLogLevelWithRegex(t *testing.T) {
 
 func Test_selectLogRegex_ValidFormats(t *testing.T) {
 	Convey("selectLogRegex() with valid formats", t, func() {
-		Convey("empty string maps to go-logfmt format", func() {
-			regex := selectLogRegex("")
-			So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
+		Convey("LogFormatGo returns go-logfmt format", func() {
+			regex := selectLogRegex(LogFormatGo)
+			So(regex, ShouldEqual, logFormatRegexes[LogFormatGo])
 
 			// Verify it actually works by testing with a logfmt line
 			line := `level=info msg="test"`
@@ -97,20 +97,9 @@ func Test_selectLogRegex_ValidFormats(t *testing.T) {
 			So(level, ShouldEqual, "info")
 		})
 
-		Convey("go-logfmt explicitly returns go-logfmt format", func() {
-			regex := selectLogRegex("go-logfmt")
-			So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
-
-			// Verify it actually works
-			line := `level=error msg="test"`
-			level, found := extractLogLevelWithRegex(line, regex)
-			So(found, ShouldBeTrue)
-			So(level, ShouldEqual, "error")
-		})
-
-		Convey("json returns json format", func() {
-			regex := selectLogRegex("json")
-			So(regex, ShouldEqual, SupportedLogFormats["json"])
+		Convey("LogFormatJSON returns json format", func() {
+			regex := selectLogRegex(LogFormatJSON)
+			So(regex, ShouldEqual, logFormatRegexes[LogFormatJSON])
 
 			// Verify it actually works
 			line := `{"level":"warn","msg":"test"}`
@@ -119,9 +108,9 @@ func Test_selectLogRegex_ValidFormats(t *testing.T) {
 			So(level, ShouldEqual, "warn")
 		})
 
-		Convey("tab returns tab-separated format", func() {
-			regex := selectLogRegex("tab")
-			So(regex, ShouldEqual, SupportedLogFormats["tab"])
+		Convey("LogFormatTab returns tab-separated format", func() {
+			regex := selectLogRegex(LogFormatTab)
+			So(regex, ShouldEqual, logFormatRegexes[LogFormatTab])
 
 			// Verify it actually works
 			line := `2025-12-18T06:20:47.312Z    ERROR    main    test`
@@ -132,12 +121,32 @@ func Test_selectLogRegex_ValidFormats(t *testing.T) {
 	})
 }
 
-func Test_selectLogRegex_InvalidFormat(t *testing.T) {
-	Convey("selectLogRegex() with invalid formats", t, func() {
-		Convey("invalid format logs warning and falls back to go-logfmt", func() {
+func Test_parseLogFormat(t *testing.T) {
+	Convey("parseLogFormat()", t, func() {
+		Convey("empty string returns LogFormatGo", func() {
+			So(parseLogFormat(""), ShouldEqual, LogFormatGo)
+		})
+
+		Convey("go-logfmt returns LogFormatGo", func() {
+			So(parseLogFormat("go-logfmt"), ShouldEqual, LogFormatGo)
+		})
+
+		Convey("json returns LogFormatJSON", func() {
+			So(parseLogFormat("json"), ShouldEqual, LogFormatJSON)
+		})
+
+		Convey("tab returns LogFormatTab", func() {
+			So(parseLogFormat("tab"), ShouldEqual, LogFormatTab)
+		})
+
+		Convey("ruby returns LogFormatRuby", func() {
+			So(parseLogFormat("ruby"), ShouldEqual, LogFormatRuby)
+		})
+
+		Convey("invalid format logs warning and falls back to LogFormatGo", func() {
 			output := LogCapture(func() {
-				regex := selectLogRegex("xml")
-				So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
+				format := parseLogFormat("xml")
+				So(format, ShouldEqual, LogFormatGo)
 			})
 			So(output, ShouldContainSubstring, "Unsupported log format 'xml'")
 			So(output, ShouldContainSubstring, "falling back to 'go-logfmt'")
@@ -145,34 +154,11 @@ func Test_selectLogRegex_InvalidFormat(t *testing.T) {
 
 		Convey("wrong case format logs warning and falls back", func() {
 			output := LogCapture(func() {
-				regex := selectLogRegex("JSON")
-				So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
+				format := parseLogFormat("JSON")
+				So(format, ShouldEqual, LogFormatGo)
 			})
 			So(output, ShouldContainSubstring, "Unsupported log format 'JSON'")
 			So(output, ShouldContainSubstring, "falling back to 'go-logfmt'")
-		})
-
-		Convey("csv format logs warning and falls back", func() {
-			output := LogCapture(func() {
-				regex := selectLogRegex("csv")
-				So(regex, ShouldEqual, SupportedLogFormats["go-logfmt"])
-			})
-			So(output, ShouldContainSubstring, "Unsupported log format 'csv'")
-			So(output, ShouldContainSubstring, "falling back to 'go-logfmt'")
-		})
-
-		Convey("fallback regex works correctly", func() {
-			// Test that the fallback regex actually works on log lines
-			output := LogCapture(func() {
-				regex := selectLogRegex("unsupported")
-
-				// Test with logfmt line
-				line := `time="2025-11-14T09:02:08Z" level=info msg="test"`
-				level, found := extractLogLevelWithRegex(line, regex)
-				So(found, ShouldBeTrue)
-				So(level, ShouldEqual, "info")
-			})
-			So(output, ShouldContainSubstring, "Unsupported log format")
 		})
 	})
 }
