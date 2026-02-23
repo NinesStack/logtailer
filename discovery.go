@@ -27,6 +27,7 @@ type Pod struct {
 	Namespace   string
 	ServiceName string
 	Environment string
+	LogFormat   string
 	Logs        []string
 }
 

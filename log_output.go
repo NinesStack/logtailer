@@ -14,10 +14,52 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	// Regex to extract level from logfmt-style logs (e.g., level=info, level=error, level="error")
-	logLevelRegex = regexp.MustCompile(`level="?([a-zA-Z]+)"?`)
+// LogFormat represents the type of log format for level extraction
+type LogFormat int
+
+const (
+	LogFormatGo LogFormat = iota
+	LogFormatJSON
+	LogFormatTab
+	LogFormatRuby
 )
+
+// logFormatRegexes maps LogFormat enum values to their compiled regex patterns
+// for extracting log level from different log formats.
+var logFormatRegexes = map[LogFormat]*regexp.Regexp{
+	LogFormatGo:   regexp.MustCompile(`level="?([a-zA-Z]+)"?`),                   // logfmt-style: level=info
+	LogFormatJSON: regexp.MustCompile(`"level"\s*:\s*"([a-zA-Z]+)"`),             // JSON: "level":"info"
+	LogFormatTab:  regexp.MustCompile(`^\S+\s+([A-Z]+)\s+`),                      // Tab-separated: INFO
+	LogFormatRuby: regexp.MustCompile(`\]\s+(INFO|DEBUG|WARN|ERROR|FATAL)\s+--`), // Ruby Logger
+}
+
+// logFormatNames maps LogFormat enum values to their string names for logging purposes
+var logFormatNames = map[LogFormat]string{
+	LogFormatGo:   "go-logfmt",
+	LogFormatJSON: "json",
+	LogFormatTab:  "tab",
+	LogFormatRuby: "ruby",
+}
+
+// parseLogFormat converts a string annotation to a LogFormat enum value.
+// Empty string defaults to LogFormatGo. Invalid formats log a warning and fall back to LogFormatGo.
+func parseLogFormat(logFormat string) LogFormat {
+	chosenFormat := LogFormatGo
+	switch logFormat {
+	case "json":
+		chosenFormat = LogFormatJSON
+	case "tab":
+		chosenFormat = LogFormatTab
+	case "ruby":
+		chosenFormat = LogFormatRuby
+	case "go-logfmt", "":
+		fallthrough
+	default:
+		log.Warnf("Unsupported log format '%s', falling back to 'go-logfmt'", logFormat)
+		chosenFormat = LogFormatGo
+	}
+	return chosenFormat
+}
 
 type LogLine struct {
 	Text      string // The log line
@@ -32,20 +74,29 @@ type LogOutput interface {
 type UDPSyslogger struct {
 	syslogger                  *log.Entry
 	enableRegexLogLevelParsing bool
+	logFormat                  LogFormat
+	logRegex                   *regexp.Regexp
 }
 
-// extractLogLevel attempts to extract the log level from structured log formats (logfmt).
+// selectLogRegex returns the appropriate regex pattern based on the LogFormat enum.
+// This should be called once during initialization rather than on every log line.
+func selectLogRegex(logFormat LogFormat) *regexp.Regexp {
+	return logFormatRegexes[logFormat]
+}
+
+// extractLogLevelWithRegex attempts to extract the log level using a pre-selected regex pattern.
+// This is the optimized version used internally by UDPSyslogger.
 // It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
 // whether a level was found.
-func extractLogLevel(logLine string) (string, bool) {
-	matches := logLevelRegex.FindStringSubmatch(logLine)
+func extractLogLevelWithRegex(logLine string, regex *regexp.Regexp) (string, bool) {
+	matches := regex.FindStringSubmatch(logLine)
 	if len(matches) >= 2 {
 		return strings.ToLower(matches[1]), true
 	}
 	return "", false
 }
 
-func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool) *UDPSyslogger {
+func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLevelParsing bool, logFormat string) *UDPSyslogger {
 	syslogger := log.New()
 
 	// We relay UDP syslog because we don't plan to ship it off the box and
@@ -66,6 +117,9 @@ func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLev
 	})
 	syslogger.SetOutput(ioutil.Discard)
 
+	// Parse the string annotation to enum
+	parsedFormat := parseLogFormat(logFormat)
+
 	// Add four to the labels length to account for hostname, etc
 	fields := make(log.Fields, len(labels)+4)
 
@@ -77,6 +131,8 @@ func NewUDPSyslogger(labels map[string]string, address string, enableRegexLogLev
 	return &UDPSyslogger{
 		syslogger:                  syslogger.WithFields(fields),
 		enableRegexLogLevelParsing: enableRegexLogLevelParsing,
+		logFormat:                  parsedFormat,
+		logRegex:                   selectLogRegex(parsedFormat),
 	}
 }
 
@@ -104,12 +160,18 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 		lineTxt = lineTxt[39:len(lineTxt)]
 	}
 
-	logger := sysl.syslogger.WithField("Container", line.Container)
+	fields := log.Fields{
+		"Container": line.Container,
+	}
+	if sysl.enableRegexLogLevelParsing {
+		fields["LogFormat"] = logFormatNames[sysl.logFormat]
+	}
+	logger := sysl.syslogger.WithFields(fields)
 
 	// If regex log level parsing is enabled, try to extract the log level
 	// from structured logs (e.g., level=info)
 	if sysl.enableRegexLogLevelParsing {
-		if level, found := extractLogLevel(lineTxt); found {
+		if level, found := extractLogLevelWithRegex(lineTxt, sysl.logRegex); found {
 			// Map to Error, Warn or Info based on severity
 			switch level {
 			case "panic", "fatal", "error":
