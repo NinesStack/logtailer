@@ -205,6 +205,7 @@ func (t *Tailer) Run() {
 		for line := range t.LogChan {
 			t.logger.Log(line)
 		}
+		t.looper.Quit()
 		return nil
 	})
 }
