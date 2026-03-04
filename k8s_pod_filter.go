@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -37,25 +38,23 @@ type PodFilter struct {
 	KubeHost string
 	KubePort int
 
-	token  string
-	client *http.Client
+	credsPath string
+	token     string
+	client    *http.Client
 }
 
 func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPath string) *PodFilter {
 	f := &PodFilter{
-		Timeout:  timeout,
-		KubeHost: kubeHost,
-		KubePort: kubePort,
+		Timeout:   timeout,
+		KubeHost:  kubeHost,
+		KubePort:  kubePort,
+		credsPath: credsPath,
 	}
 	// Cache the secret from the file
-	data, err := ioutil.ReadFile(credsPath + "/token")
-	if err != nil {
+	if err := f.refreshToken(); err != nil {
 		log.Errorf("Failed to read serviceaccount token: %s", err)
 		return nil
 	}
-
-	// New line is illegal in tokens
-	f.token = strings.Replace(string(data), "\n", "", -1)
 
 	// Set up the timeout on a clean HTTP client
 	f.client = cleanhttp.DefaultClient()
@@ -86,6 +85,28 @@ func NewPodFilter(kubeHost string, kubePort int, timeout time.Duration, credsPat
 	return f
 }
 
+// refreshToken re-reads the service account token from disk. The kubelet
+// rotates this file before the token expires.
+func (f *PodFilter) refreshToken() error {
+	data, err := os.ReadFile(f.credsPath + "/token")
+	if err != nil {
+		return fmt.Errorf("failed to read serviceaccount token: %w", err)
+	}
+	// Newline is illegal in tokens
+	f.token = strings.Replace(string(data), "\n", "", -1)
+	return nil
+}
+
+func (f *PodFilter) newRequest(urlStr string) (*http.Request, error) {
+	req, err := http.NewRequest("GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "logtailer/"+Version)
+	req.Header.Set("Authorization", "Bearer "+f.token)
+	return req, nil
+}
+
 func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 	var scheme = "http"
 	if f.KubePort == 443 {
@@ -100,17 +121,34 @@ func (f *PodFilter) makeRequest(path string) ([]byte, error) {
 	apiURL.Scheme = scheme
 	apiURL.Host = fmt.Sprintf("%s:%d", f.KubeHost, f.KubePort)
 
-	req, err := http.NewRequest("GET", apiURL.String(), nil)
+	req, err := f.newRequest(apiURL.String())
 	if err != nil {
 		return []byte{}, err
 	}
 
-	req.Header.Set("User-Agent", "logtailer/"+Version)
-	req.Header.Set("Authorization", "Bearer "+f.token)
-
 	resp, err := f.client.Do(req)
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to fetch from K8s API '%s': %w", path, err)
+	}
+
+	// On 401, refresh the token from disk and retry once
+	if resp.StatusCode == http.StatusUnauthorized {
+		resp.Body.Close()
+
+		log.Warnf("Got 401 from K8s API for '%s', refreshing service account token", path)
+		if err := f.refreshToken(); err != nil {
+			return []byte{}, fmt.Errorf("failed to refresh token after 401: %w", err)
+		}
+
+		req, err = f.newRequest(apiURL.String())
+		if err != nil {
+			return []byte{}, err
+		}
+
+		resp, err = f.client.Do(req)
+		if err != nil {
+			return []byte{}, fmt.Errorf("failed to fetch from K8s API '%s' after token refresh: %w", path, err)
+		}
 	}
 	defer resp.Body.Close()
 
