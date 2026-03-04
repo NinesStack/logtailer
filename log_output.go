@@ -53,7 +53,7 @@ func parseLogFormat(logFormat string) LogFormat {
 	case "ruby":
 		chosenFormat = LogFormatRuby
 	case "go-logfmt", "":
-		fallthrough
+		chosenFormat = LogFormatGo
 	default:
 		log.Warnf("Unsupported log format '%s', falling back to 'go-logfmt'", logFormat)
 		chosenFormat = LogFormatGo
