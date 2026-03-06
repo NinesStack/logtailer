@@ -84,6 +84,38 @@ func Test_extractLogLevelWithRegex(t *testing.T) {
 	})
 }
 
+func Test_containsWord(t *testing.T) {
+	Convey("containsWord()", t, func() {
+		Convey("does not match --show-error flag", func() {
+			So(containsWord("++ curl --show-error --fail", "error"), ShouldBeFalse)
+		})
+
+		Convey("does not match --warn-something flag", func() {
+			So(containsWord("--warn-something", "warn"), ShouldBeFalse)
+		})
+
+		Convey("matches standalone error", func() {
+			So(containsWord("an error occurred", "error"), ShouldBeTrue)
+		})
+
+		Convey("matches warn followed by colon", func() {
+			So(containsWord("warn: something bad", "warn"), ShouldBeTrue)
+		})
+
+		Convey("matches error in brackets", func() {
+			So(containsWord("[error] failed", "error"), ShouldBeTrue)
+		})
+
+		Convey("matches error as entire string", func() {
+			So(containsWord("error", "error"), ShouldBeTrue)
+		})
+
+		Convey("does not match error inside a word", func() {
+			So(containsWord("myerrorhandler", "error"), ShouldBeFalse)
+		})
+	})
+}
+
 func Test_selectLogRegex_ValidFormats(t *testing.T) {
 	Convey("selectLogRegex() with valid formats", t, func() {
 		Convey("LogFormatGo returns go-logfmt format", func() {

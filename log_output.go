@@ -84,6 +84,31 @@ func selectLogRegex(logFormat LogFormat) *regexp.Regexp {
 	return logFormatRegexes[logFormat]
 }
 
+// isWordChar returns true if the byte is a letter, digit, hyphen, or underscore.
+func isWordChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+		(c >= '0' && c <= '9') || c == '-' || c == '_'
+}
+
+// containsWord checks if word appears in line as a standalone word
+// (not as part of a hyphenated flag like --show-error).
+func containsWord(line, word string) bool {
+	for i := 0; i < len(line); {
+		idx := strings.Index(line[i:], word)
+		if idx == -1 {
+			return false
+		}
+		abs := i + idx
+		before := abs == 0 || !isWordChar(line[abs-1])
+		after := abs+len(word) >= len(line) || !isWordChar(line[abs+len(word)])
+		if before && after {
+			return true
+		}
+		i = abs + len(word)
+	}
+	return false
+}
+
 // extractLogLevelWithRegex attempts to extract the log level using a pre-selected regex pattern.
 // This is the optimized version used internally by UDPSyslogger.
 // It returns the level string (e.g., "info", "error", "warning") and a boolean indicating
@@ -189,13 +214,13 @@ func (sysl *UDPSyslogger) Log(line *LogLine) {
 	// Fallback to heuristic detection (a la sidecar-executor)
 	// This is used when enhanced extraction is disabled or no structured level was found
 	lowerLine := strings.ToLower(lineTxt)
-	if descriptor == "stderr" || strings.Contains(lowerLine, "error") {
+	if descriptor == "stderr" || containsWord(lowerLine, "error") {
 		logger.Error(lineTxt)
 		return
 	}
 
 	// Support warning level by line-scraping as well
-	if strings.Contains(lowerLine, "warn") {
+	if containsWord(lowerLine, "warn") {
 		logger.Warn(lineTxt)
 		return
 	}
