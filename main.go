@@ -49,7 +49,7 @@ type Config struct {
 	KubeTimeout   time.Duration `envconfig:"KUBERNETES_TIMEOUT" default:"3s"`
 	KubeCredsPath string        `envconfig:"KUBERNETES_CREDS_PATH" default:"/var/run/secrets/kubernetes.io/serviceaccount"`
 
-	EnableRegexLogLevelParsing bool `envconfig:"ENABLE_REGEX_LOG_LEVEL_PARSING" default:false`
+	EnableRegexLogLevelParsing bool `envconfig:"ENABLE_REGEX_LOG_LEVEL_PARSING" default:"false"`
 
 	Debug bool `envconfig:"DEBUG" default:"false"`
 }

@@ -205,7 +205,7 @@ func (t *Tailer) Run() {
 		for line := range t.LogChan {
 			t.logger.Log(line)
 		}
-		return nil
+		return fmt.Errorf("log channel closed for pod %s", t.Pod.Name)
 	})
 }
 
